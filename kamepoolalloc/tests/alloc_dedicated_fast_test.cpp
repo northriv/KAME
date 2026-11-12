@@ -46,6 +46,7 @@
 
 #include "kame_pool.h"
 
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -224,7 +225,7 @@ static void scenario_aligned() {
 }
 
 static void scenario_threads() {
-    std::printf("[threads] allocate on A, free on B (B's L1), B exits, A reuses\n");
+    std::printf("[threads] allocate on A, free on B (B's L1 / L2), B exits, A reuses\n");
     for(int round = 0; round < 30; ++round) {
         std::vector<void *> v;
         for(int i = 0; i < 40; ++i) {
@@ -235,7 +236,7 @@ static void scenario_threads() {
         }
         std::thread([&v] {
             for(void *p : v) kame_pool_free(p);
-            // B also churns a little on its own, so its L1 holds both.
+            // B also churns a little on its own, so its L1 opens and holds its band.
             for(int k = 0; k < 20; ++k) kame_pool_free(kame_pool_malloc(200 * 1024));
         }).join();
         for(int i = 0; i < 40; ++i) {
@@ -244,6 +245,70 @@ static void scenario_threads() {
             kame_pool_free(p);
         }
     }
+}
+
+// Demand-gated L1: a long-lived consumer thread B that only allocates 64 KiB
+// (idx 0) must NOT hoard cross-thread 1 MiB dedicated chunks (idx 9) or 8 MiB
+// large_va mmaps (idx 20) in its private L1 while B remains alive.  Instead B
+// pushes unrequested bands straight to global L2 so producer A immediately
+// reuses the same chunk without claiming 20 MiB of stranded chunks.
+static void scenario_demand_handoff() {
+    std::printf("[demand] live consumer armed at 64 KiB routes 1 MiB / 8 MiB frees to L2\n");
+    kame_pool_trim();
+    const std::size_t base_ded = stats().dedicated_chunk_bytes;
+
+    std::atomic<void *> slot_ded{nullptr};
+    std::atomic<void *> slot_lva{nullptr};
+    std::atomic<int>    state{0};   // 0=idle, 1=ready-to-free, 2=freed, 3=quit
+
+    std::thread consumer([&] {
+        // Arm B's L1 on 64 KiB only (idx 0), matching bench_frame's game thread.
+        void *warm = kame_pool_malloc(64 * 1024);
+        check_block(warm, 64 * 1024, "demand-warm");
+        kame_pool_free(warm);
+
+        for(;;) {
+            int s = state.load(std::memory_order_acquire);
+            if(s == 3) break;
+            if(s != 1) { std::this_thread::yield(); continue; }
+            kame_pool_free(slot_ded.load(std::memory_order_relaxed));
+            kame_pool_free(slot_lva.load(std::memory_order_relaxed));
+            state.store(2, std::memory_order_release);
+        }
+    });
+
+    const std::size_t sz_ded = (std::size_t)1024 * 1024;
+    const std::size_t sz_lva = (std::size_t)8 * 1024 * 1024;
+    for(int round = 0; round < 20; ++round) {
+        void *pd = kame_pool_malloc(sz_ded);
+        void *pl = kame_pool_malloc(sz_lva);
+        check_block(pd, sz_ded, "demand-ded");
+        CHECK(pl != nullptr, "demand-lva: malloc(%zu) returned null", sz_lva);
+        if(pd) stamp(pd, sz_ded, (unsigned char)(0xA0 + round));
+        if(pl) stamp(pl, 4096, (unsigned char)(0x50 + round));
+        slot_ded.store(pd, std::memory_order_relaxed);
+        slot_lva.store(pl, std::memory_order_relaxed);
+        state.store(1, std::memory_order_release);
+        while(state.load(std::memory_order_acquire) != 2)
+            std::this_thread::yield();
+
+        // Consumer B is STILL ALIVE: the 1.25 MiB dedicated chunk must be in
+        // global L2 (cache_bytes >= 1.25 MiB) and total dedicated bytes must
+        // stay bounded to B's 256 KiB chunk + A's single 1.25 MiB chunk
+        // (<= 2 MiB above base, vs 25+ MiB if stranded in B's private L1).
+        const kame_pool_stats_t st = stats();
+        CHECK(st.cache_bytes >= 5 * UNIT,
+              "demand round %d: expected >= %zu B in global L2, got %zu B",
+              round, 5 * UNIT, st.cache_bytes);
+        CHECK(st.dedicated_chunk_bytes <= base_ded + 8 * UNIT,
+              "demand round %d: dedicated_chunk_bytes grew to %zu (base %zu) — "
+              "consumer hoarded unrequested band in private L1",
+              round, st.dedicated_chunk_bytes, base_ded);
+        state.store(0, std::memory_order_release);
+    }
+
+    state.store(3, std::memory_order_release);
+    consumer.join();
 }
 
 // Allocates and frees dedicated blocks when destroyed.  Its destructor is
@@ -301,6 +366,7 @@ int main() {
     scenario_calloc_realloc();
     scenario_aligned();
     scenario_threads();
+    scenario_demand_handoff();
 
     kame_pool_trim();
     const kame_pool_stats_t s0 = stats();

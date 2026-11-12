@@ -37,7 +37,7 @@ kernel for memory, which is what makes the G1–G3 gating tractable:
 | `mmap_new_region()` (`:6360`) ← `claim_chunk` (`:3957`) | pool regions (32 MiB) | cold chunk claim (bucket + dedicated) | unbounded by nature → must be pushed out of the RT section by prewarm (G2) / pre-reserve (G3) |
 | `radix_alloc_l2()` (`:6277`) | radix L2 leaf (8 KiB) | first insert into an uncovered VA band | same — prewarm must touch the radix path (G2.1) |
 | `large_va_raw_map()` (`:6507`) ← §19 large tier (`:7258`) | > dedicated, ≤ 32 MiB | large alloc missing the LRC | LRC hit avoids it; free-side `munmap` is G1 |
-| `lrc_auto_tune_lazy_interval()` (`:6936`) | one-shot probe | first LRC_MMAP push | **already gated** by §30 (`g_lazy_auto_tune_done`) |
+| `lrc_record_auto_tune_sample()` (`§28.3`) | none (piggybacks on first real lazy `lrc_release`) | first `lrc_lazy_mmap_one()` unmap | zero extra mapping; gated by §30 (`g_lazy_auto_tune_done`) and `rt_defer_active()` |
 
 Plus the page-reclaim syscalls (`madvise`) in `deallocate_chunk` (`:3264/:3273`)
 — the G1 hole.
