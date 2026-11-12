@@ -187,8 +187,8 @@ K-major layout: `g_lrc[k].slots[idx]`, `k ∈ [0,LRC_K_MAX)`, `idx ∈
 
 - **INV-19 (§28.1, raise-only auto-tune)** — `g_lrc_lazy_interval_ns` is only
   ever raised above the 10 ms default by auto-tune, never lowered (a single
-  cold-cache munmap probe can under-estimate sustained cost). · *lrc_auto_tune
-  _lazy_interval* · *breaks: down-tune makes per-thread munmap pressure WORSE
+  cold-cache munmap sample can under-estimate sustained cost). · *lrc_record
+  _auto_tune_sample* · *breaks: down-tune makes per-thread munmap pressure WORSE
   than default (the Ohtaka 1 ms regression)* · **test** (alloc_tune_report
   self-check).
 
