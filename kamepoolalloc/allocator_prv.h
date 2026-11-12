@@ -216,6 +216,11 @@ inline void atomicInc(T *target) noexcept {
     else _InterlockedIncrement((long volatile *)target);
 }
 template <typename T>
+inline void atomicAdd(T *target, T delta) noexcept {
+    if constexpr (sizeof(T) == 8) _InterlockedExchangeAdd64((long long volatile *)target, (long long)delta);
+    else _InterlockedExchangeAdd((long volatile *)target, (long)delta);
+}
+template <typename T>
 inline void atomicDec(T *target) noexcept {
     if constexpr (sizeof(T) == 8) _InterlockedDecrement64((long long volatile *)target);
     else _InterlockedDecrement((long volatile *)target);
@@ -261,6 +266,10 @@ atomicCompareAndSet(T oldv, T newv, T *target) noexcept {
 template <typename T>
 inline void atomicInc(T *target) noexcept {
     __sync_fetch_and_add(target, 1);
+}
+template <typename T>
+inline void atomicAdd(T *target, T delta) noexcept {
+    __sync_fetch_and_add(target, delta);
 }
 template <typename T>
 inline void atomicDec(T *target) noexcept {
@@ -734,7 +743,7 @@ static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
 //!          │   m_base_bucket, m_sizes,                  │
 //!          │   m_freelist_head[KAME_LOCAL_BUCKETS]      │
 //!    +216  │ m_chunk_size; m_flags (-> the bitmap      │
-//!          │   below), m_idx, m_count                   │
+//!          │   below), m_idx, m_count, m_prefill_word   │
 //!    +256  ├────────────────────────────────────────────┤
 //!          │ alignas(64) m_flags_packed (MASK_CNT,      │  <- cross-thread
 //!          │   BIT_A / BIT_Q / BIT_OWNED),              │     free, revival,
@@ -1938,6 +1947,7 @@ public:
 protected:
 	PoolAllocator(int count, char *addr);
 	inline void *allocate_pooled(unsigned int SIZE);
+	void *expand_prefill_watermark() noexcept;
 	bool deallocate_pooled(char *p) override;
 	int batch_return_to_bitmap(const CrossDeallocEntry *entries) noexcept override;
 	//! (§revive) The body: `revive` = take BIT_Q before clearing and push the
@@ -1989,6 +1999,14 @@ protected:
 	//! A hint for searching in a chunk.
 	int m_idx;
 	const int m_count;
+	//! (§29 watermark) First un-prefilled bitmap word in `[0, m_count]`.
+	//! Owner-only: words `[0, m_prefill_word)` have been pre-filled or
+	//! watermark-expanded; words `[m_prefill_word, m_count)` remain virgin
+	//! (`m_flags == 0`, slot pages unfaulted).  Equals `m_count` once fully
+	//! expanded or when §29 pre-fill is inactive (`FS=false`, `GUARDIAN`, or
+	//! `KAME_POOL_DISABLE_PREFILL=1`).  Fits inside the 16-byte alignment pad
+	//! before `alignas(64) m_flags_packed` (`sizeof(PoolAllocator) == 320` LP64).
+	int m_prefill_word;
 
 	// === Cache line 1+: cross-thread-written atomic counters.
 	// `alignas(64)` on the first counter forces them onto a separate
