@@ -274,6 +274,10 @@ extern "C" void kame_pool_win_install_redirect() noexcept;
 // reads via fs:offset directly.  Same single-bool fits the IE budget
 // easily; updates happen exactly once per thread (at TLS teardown).
 ALLOC_TLS_IE bool s_alloc_tls_off = false;
+// (§29 watermark / §75 prewarm) True inside `kame_pool_prewarm()` so any
+// FS=true chunk claimed or watermark-expanded during explicit RT prewarm
+// faults and links its full slot capacity upfront rather than lazily.
+static ALLOC_TLS bool s_tls_in_prewarm = false;
 
 // Per-thread owner id for the deallocate owner-check fast path.  A
 // chunk stamps `m_owner_id = kame_owner_id()` at allocate_chunk; a
@@ -1351,13 +1355,17 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	PoolAllocatorBase(),
 	m_flags(reinterpret_cast<FUINT *>( &addr[((sizeof(PoolAllocator) + sizeof(FUINT) - 1) / sizeof(FUINT)) * sizeof(FUINT)])),
 	m_idx(0),
-	m_count(count) {
+	m_count(count),
+	m_prefill_word(count) {
 	// BIT_OWNED set at construction — the chunk has an
 	// owner (the thread doing the chunk-claim and adding to its DLL).
 	// MASK_CNT init depends on path:
-	//   * FS=true real chunk (`FS && DUMMY`, pre-fill below): every
-	//     m_flags bit gets set to 1 and every slot is linked into the
-	//     chunk-local freelist.  MASK_CNT = count (all words non-empty).
+	//   * FS=true real chunk (`FS && DUMMY`, watermark pre-fill below):
+	//     words `[0, init_w)` (1 OS page of slots, or all `count` words
+	//     inside `kame_pool_prewarm`) get all bits set to 1 and their slots
+	//     linked into `m_freelist_head[0]`; words `[init_w, count)` stay 0
+	//     with their slot pages unfaulted until `allocate_pooled` advances
+	//     `m_prefill_word`.  `MASK_CNT = init_w`.
 	//   * FS=false base ctor pass (`FS && !DUMMY`) or the GUARDIAN
 	//     debug path: bits stay 0; MASK_CNT = 0; allocate_pooled bumps
 	//     it on the first bitmap-CAS claim.
@@ -1422,47 +1430,48 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	}();
 	bool prefilled = false;
 #ifndef GUARDIAN
-	if constexpr (FS && DUMMY) if(s_prefill_enabled) {
+	if constexpr (FS && DUMMY) if(s_prefill_enabled && count > 0) {
 		prefilled = true;
-		// (§29) FS=true freelist pre-fill at chunk-claim.
+		// (§29 watermark) FS=true lazy watermark freelist pre-fill.
 		//
-		// Non-atomically link ALL slots into the chunk-local freelist
-		// (LIFO; slot's first 8 B = next pointer, its next 8 B = 0, the
-		// count a thread list reads, §tl-cap) and set every m_flags
-		// bit to 1.  Effect on the alloc paths:
-		//   * fresh-chunk first alloc (cold path through
-		//     `allocate_chunk_path` → `allocate_pooled`): the
-		//     freelist_pop check at the head of allocate_pooled (§29)
-		//     pops slot 0 in O(1) — no bitmap-CAS find-zero scan.
-		//   * steady state: that same miss then moves the rest of the
-		//     chain onto the thread's empty list in one store (tc_miss,
-		//     §thread-list), and the hot path (`new_redirected`) pops it
-		//     from there.
+		// Instead of dirtying every page of the 256..512 KiB chunk up front
+		// (up to 16,128 slots = 64 minor faults per chunk, 6 MiB/thread across
+		// the 17 FS=true buckets even when a thread allocates 1 object per
+		// bucket), pre-fill ONLY 1 OS page worth of bitmap words (`kInitWords`,
+		// >= 1 word) at chunk claim, leaving words `[init_w, count)` virgin
+		// (`m_flags == 0`, slot pages untouched).  Inside `kame_pool_prewarm`
+		// (`s_tls_in_prewarm`), pre-fill all `count` words immediately so hard-RT
+		// prewarm faults the entire chunk before entering the RT section.
+		//
+		// Effect on the alloc paths:
+		//   * fresh-chunk first alloc (`allocate_chunk_path` → `allocate_pooled`):
+		//     `freelist_pop(0)` pops slot 0 in O(1), and `tc_miss` splices the
+		//     rest of the initial 1-page chain onto the thread's empty list in
+		//     one store.
+		//   * subsequent misses: while `m_prefill_word < m_count`,
+		//     `expand_prefill_watermark()` advances `m_prefill_word` by a
+		//     bounded ~16 KiB step (`kStepWords`), splicing that step onto the
+		//     thread list via `tc_miss`.  Sparse / owner-local threads stay inside
+		//     1 warm page; sustained cross-thread rings quickly reach `m_count`
+		//     so producer and consumer spread across all `m_flags[]` cache lines
+		//     without false sharing, then use the unchanged bitmap-CAS scan.
 		//
 		// Lifecycle invariants (INV-6, INV-7, INV-15..18) preserved:
-		// every pre-filled slot's m_flags bit IS set, so "bit set ⇔ slot
-		// live in user OR in owner freelist" holds throughout.  Cross-
-		// thread frees CAS-clear bits and dec MASK_CNT on word-empty
-		// exactly as before; owner-exit drain in
-		// release_dll_chunks_for_thread feeds each remaining freelist
-		// entry through batch_return_to_bitmap, which clears the bit and
-		// decs MASK_CNT on word-empty by the same path.
-		//
-		// Side benefit (automatic prewarm): the per-slot 8-byte next-
-		// pointer write page-faults every slot's first page, so the
-		// first user access is hot.  Matters for the cold-start path
-		// of alloc-heavy workloads.
-		//
-		// Owner-exclusive at this point — the chunk is not yet in the
-		// thread's DLL nor stamped into the radix — so non-atomic stores
-		// on m_flags, m_flags_packed, m_freelist_head[0], and slot
-		// next-pointer fields are safe.
-		//
-		// FS=true serves a single bucket per (ALIGN) instantiation, so
-		// every slot's local-id is 0 (see `kBucketLocalId[]`).
-		constexpr unsigned FUINT_BITS_PF = sizeof(FUINT) * 8;
+		// every pre-filled slot in `[0, m_prefill_word)` has its `m_flags` bit
+		// set, so "bit set ⇔ slot live in user OR in owner freelist" holds
+		// identically; virgin words `[m_prefill_word, count)` have `m_flags == 0`
+		// and zero handed-out slots.  Thread-exit / `kame_pool_trim` only drains
+		// the `<= m_prefill_word` words actually materialised.
+		constexpr unsigned FUINT_BITS_PF = sizeof(FUINT) * 8u;
+		constexpr int kInitWords =
+		    ((size_t)ALLOC_PAGE_SIZE / ((size_t)ALIGN * FUINT_BITS_PF) > 1u)
+		        ? static_cast<int>((size_t)ALLOC_PAGE_SIZE / ((size_t)ALIGN * FUINT_BITS_PF))
+		        : 1;
+		const int init_w = __builtin_expect(s_tls_in_prewarm, 0)
+		    ? count
+		    : (kInitWords < count ? kInitWords : count);
 		const size_t N_slots =
-		    static_cast<size_t>(count) * FUINT_BITS_PF;
+		    static_cast<size_t>(init_w) * FUINT_BITS_PF;
 		char *base = this->mempool();
 		char *prev = nullptr;
 		for(size_t i = N_slots; i-- > 0; ) {
@@ -1474,10 +1483,13 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 		m_freelist_head[0] = base;
 		for(int b = 1; b < KAME_LOCAL_BUCKETS; ++b)
 			m_freelist_head[b] = nullptr;
-		for(int i = count - 1; i >= 0; --i)
+		for(int i = 0; i < init_w; ++i)
 			m_flags[i] = ~(FUINT)0u;
-		m_flags_packed = BIT_OWNED | static_cast<std::uint32_t>(count);
-		m_flags_filled_cnt = count;
+		for(int i = init_w; i < count; ++i)
+			m_flags[i] = 0;
+		m_flags_packed = BIT_OWNED | static_cast<std::uint32_t>(init_w);
+		m_flags_filled_cnt = init_w;
+		m_prefill_word = init_w;
 	}
 #endif
 	if( !prefilled) {
@@ -1628,14 +1640,64 @@ inline void PoolAllocator<ALIGN, FS, DUMMY>::operator delete(void *p) throw() {
 }
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
-inline void *
-PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
+KAME_NOINLINE void *
+PoolAllocator<ALIGN, FS, DUMMY>::expand_prefill_watermark() noexcept {
 #ifndef GUARDIAN
 	if constexpr (FS && DUMMY) {
-		// (§29) Freelist hit: slots chained by the whole-word claim below,
-		// or pre-filled at chunk claim, that tc_miss could not hand to the
-		// thread's list (it was not empty) -- usually none, as a miss
-		// moves the chain onto the list whole (§thread-list).
+		assert(this->m_prefill_word < this->m_count);
+		assert(this->m_freelist_head[0] == nullptr);
+		// (§29 watermark) Advance `m_prefill_word` by a bounded ~16 KiB step
+		// (`>= ALLOC_PAGE_SIZE`, `>= 1` word; or to `m_count` inside
+		// `kame_pool_prewarm`).  Words `[w, nw)` have never had any slot
+		// handed out, so zero cross-thread freers can touch `m_flags[w..nw)`;
+		// `m_flags_packed` and `m_flags_filled_cnt` use `atomicAdd` because
+		// freers may concurrently decrement words `< w`.
+		constexpr unsigned FUINT_BITS_PF = sizeof(FUINT) * 8u;
+		constexpr size_t kStepBytes =
+		    ((size_t)ALLOC_PAGE_SIZE > 16384u) ? (size_t)ALLOC_PAGE_SIZE : 16384u;
+		constexpr int kStepWords =
+		    (kStepBytes / ((size_t)ALIGN * FUINT_BITS_PF) > 1u)
+		        ? static_cast<int>(kStepBytes / ((size_t)ALIGN * FUINT_BITS_PF))
+		        : 1;
+		const int w = this->m_prefill_word;
+		const int step = __builtin_expect(s_tls_in_prewarm, 0)
+		    ? (this->m_count - w) : kStepWords;
+		const int nw = (w + step < this->m_count) ? (w + step) : this->m_count;
+		const int delta_w = nw - w;
+		const size_t first_slot = static_cast<size_t>(w) * FUINT_BITS_PF;
+		const size_t end_slot   = static_cast<size_t>(nw) * FUINT_BITS_PF;
+		char *base = this->mempool();
+		char *prev = nullptr;
+		for(size_t i = end_slot; --i > first_slot; ) {
+			char *slot = base + i * ALIGN;
+			reinterpret_cast<char **>(slot)[0] = prev;
+			reinterpret_cast<intptr_t *>(slot)[1] = 0;   // (§tl-cap) not counted
+			prev = slot;
+		}
+		this->m_freelist_head[0] = prev;
+		for(int i = w; i < nw; ++i)
+			atomicStoreRelaxed(&this->m_flags[i], ~(FUINT)0u);
+		atomicAdd(&this->m_flags_packed, static_cast<std::uint32_t>(delta_w));
+		atomicAdd(&this->m_flags_filled_cnt, delta_w);
+		if(atomicLoadRelaxed(&this->m_flags_filled_cnt) * 5 >= this->m_count * 4)
+			tls_cross_dealloc_batch.flush();
+		this->m_prefill_word = nw;
+		writeBarrier();
+		return base + first_slot * ALIGN;
+	}
+#endif
+	return nullptr;
+}
+
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+inline void *
+PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int /*SIZE*/) {
+#ifndef GUARDIAN
+	if constexpr (FS && DUMMY) {
+		// (§29) Freelist hit: slots chained by the whole-word claim or
+		// watermark step, or pre-filled at chunk claim, that tc_miss could
+		// not hand to the thread's list (it was not empty) -- usually none,
+		// as a miss moves the chain onto the list whole (§thread-list).
 		//
 		// `freelist_pop` is non-atomic — only the owner thread touches
 		// `m_freelist_head[0]`, and the cold path is itself owner-only
@@ -1643,6 +1705,14 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 		// slow_allocate, both single-threaded for this chunk).
 		if(void *p = this->freelist_pop(0))
 			return p;
+		// (§29 watermark) While virgin words remain in `[m_prefill_word,
+		// m_count)`, materialize the next ~16 KiB step before falling back to
+		// the bitmap scan.  Sparse / owner-local threads never miss past page
+		// 0; sustained cross-thread rings quickly reach `m_count` so producer
+		// and consumer spread across all `m_flags[]` cache lines without false
+		// sharing, after which this single cold branch is never taken again.
+		if(__builtin_expect(this->m_prefill_word < this->m_count, 0))
+			return this->expand_prefill_watermark();
 	}
 #endif
 	FUINT one;
@@ -1652,16 +1722,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 		FUINT oldv = atomicLoadRelaxed(pflag);
 		if(oldv != ~(FUINT)0u) {
 			one = find_zero_forward(oldv);
-//			assert(count_bits(one) == SIZE / ALIGN);
-//			assert( !(one & oldv));
-			// Always-CAS path (formerly an oldv==0 non-atomic fast write
-			// existed here). Without an external lock around the chunk —
-			// which the TLS s_tls.my_chunk fast path in allocate() removes —
-			// the non-atomic store would race with another thread doing
-			// the same on the same flag word, producing torn writes that
-			// hand the same bit to two threads. CAS even at oldv==0 is
-			// only marginally slower and keeps the chunk thread-safe.
-			FUINT newv = oldv | one; //set a flag.
+			// Always-CAS path: keeps the word race-safe against concurrent
+			// cross-thread `batch_clear_impl` clears on the same flag word.
+			FUINT newv = oldv | one;
 #ifndef GUARDIAN
 			// (§thread-list) FS=true takes the whole word: every zero bit
 			// in this one CAS, the ones besides `one` chained below.
@@ -1672,38 +1735,17 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 				if(oldv == 0)
 					atomicInc( &this->m_flags_packed);
 				if(newv == ~(FUINT)0u) {
-                    atomicInc( &this->m_flags_filled_cnt);
-                    // Proactive Phase 3 trigger: when this chunk hits 4/5
-                    // (80 %) of its words fully filled, flush this
-                    // thread's cross-dealloc batch.  Any batched frees
-                    // for OTHER chunks land back in their bitmaps,
-                    // letting the next chunk-full event's DLL scan
-                    // (Phase 2) find recovered space before mmaping
-                    // fresh memory.  Sampled at word-fill granularity
-                    // (~1 in FUINT_BITS = 64 allocs) so the overhead is
-                    // amortised; `flush()` is a no-op when the batch is
-                    // empty so post-cross-event calls are cheap.
-                    // Relaxed load: a cross-thread free's OnClearFn
-                    // atomicDec()s this counter concurrently (TSan).
-                    // m_count is fixed at construction.
-                    if(atomicLoadRelaxed(&this->m_flags_filled_cnt) * 5
-                            >= this->m_count * 4)
-                        tls_cross_dealloc_batch.flush();
-                }
+					atomicInc( &this->m_flags_filled_cnt);
+					if(atomicLoadRelaxed(&this->m_flags_filled_cnt) * 5
+					        >= this->m_count * 4)
+						tls_cross_dealloc_batch.flush();
+				}
 				writeBarrier(); //for the counters.
 #ifndef GUARDIAN
 				if constexpr (FS && DUMMY) {
-					// (§thread-list) The other slots the CAS claimed, in
-					// address order, onto the freelist (empty, or the pop
-					// above would have served), which tc_miss hands to the
-					// thread's list whole.  When cross-thread frees are what
-					// refills the chunk -- a producer whose consumer frees
-					// -- that is one cold trip and one CAS per word instead
-					// of per slot: the word cache's claim, its slots handed
-					// out by the list's pop instead of a cold-path ctz.
-					// SPSC ring of 64 B blocks, 32 in flight, M3: 16 M
-					// ops/s claiming per slot, 50 so; 28 with the word
-					// cache.
+					// (§thread-list) Chain the other slots the CAS claimed, in
+					// address order, onto `m_freelist_head[0]`, which `tc_miss`
+					// splices onto the thread's list in one store.
 					FUINT rest = newv & ~oldv & ~one;
 					if(rest) {
 						char *wbase = this->mempool()
@@ -1727,16 +1769,13 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			}
 			continue;
 		}
-		// (§94pct-gate) FS=true: bail when ≥ 93.75 % (= 1 − 1/16) of
+		// (§94pct-gate) FS=true: bail when >= 93.75 % (= 1 - 1/16) of
 		// words are already 100 % filled.  Reached only after the walk
 		// hit a fully-filled word — at that point we already KNOW the
 		// chunk is saturated enough that adjacent words are likely also
 		// full.  Bailing here hands the alloc off to a less-saturated
 		// chunk in the DLL (or a fresh mmap) instead of walking the
-		// remaining 6 % of sparse-free-bit words.  Accepted trade-off:
-		// ~6 % slot under-utilisation in exchange for cutting the
-		// worst-case walk.  The check stays inside the loop (not at the
-		// entry) so bench_loop's tight FS=true 64 hot path pays nothing.
+		// remaining 6 % of sparse-free-bit words.
 		if(atomicLoadRelaxed(&this->m_flags_filled_cnt) >=
 		   this->m_count - this->m_count / 16)
 			return 0;
@@ -1747,11 +1786,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	}
 
 	int sidx = count_zeros_forward(one);
-
 	this->m_idx = idx;
-
-	void *p = &this->mempool()[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN];
-	return p;
+	return &this->mempool()[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN];
 }
 
 template <unsigned int ALIGN, bool DUMMY>
@@ -3131,9 +3167,14 @@ void PoolAllocator<ALIGN, FS, DUMMY>::fit_file(PoolAllocator<ALIGN, DUMMY, DUMMY
 	if(c->m_fit_cls < 0)
 		fit_reclass(c);
 }
-// (§fit) FS=true: room while allocate_pooled's §94pct-gate lets it claim.
+// (§fit) FS=true: room while virgin watermark words remain or allocate_pooled's
+// §94pct-gate lets it claim.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 unsigned PoolAllocator<ALIGN, FS, DUMMY>::fit_class() noexcept {
+	if constexpr (FS && DUMMY) {
+		if(this->m_prefill_word < this->m_count)
+			return 0u;
+	}
 	return (atomicLoadRelaxed(&this->m_flags_filled_cnt)
 	        < this->m_count - this->m_count / 16) ? 0u : 0xFFu;
 }
@@ -8288,6 +8329,8 @@ extern "C" void kame_pool_trim(void) noexcept {
 extern "C" int kame_pool_prewarm(const size_t *sizes, const unsigned *counts,
                                 unsigned n) noexcept {
 	if( !sizes || !counts) return -1;
+	const bool saved_pw = s_tls_in_prewarm;
+	s_tls_in_prewarm = true;
 	enum { BATCH = 128 };
 	void *buf[BATCH];
 	int rc = 0;
@@ -8295,6 +8338,30 @@ extern "C" int kame_pool_prewarm(const size_t *sizes, const unsigned *counts,
 		const size_t sz = sizes[i];
 		if(sz == 0) continue;
 		unsigned remaining = counts[i];
+#ifndef GUARDIAN
+		if(sz >= sizeof(void *)) {
+			void *head = nullptr;
+			unsigned got = 0;
+			for(; got < remaining; got++) {
+				void *p = kame_pool_malloc(sz);
+				if( !p) break;
+				volatile char *q = static_cast<volatile char *>(p);
+				for(size_t off = 0; off < sz; off += ALLOC_PAGE_SIZE)
+					q[off] = 0;
+				q[sz - 1] = 0;            // last partial page
+				*static_cast<void **>(p) = head;
+				head = p;
+			}
+			while(head) {
+				void *nxt = *static_cast<void **>(head);
+				*static_cast<void *volatile *>(head) = nullptr;
+				kame_pool_free(head);
+				head = nxt;
+			}
+			if(got < remaining) rc = -1;
+			continue;
+		}
+#endif
 		while(remaining) {
 			unsigned want = remaining < (unsigned)BATCH
 			                ? remaining : (unsigned)BATCH;
@@ -8314,6 +8381,7 @@ extern "C" int kame_pool_prewarm(const size_t *sizes, const unsigned *counts,
 			remaining -= want;
 		}
 	}
+	s_tls_in_prewarm = saved_pw;
 	return rc;
 }
 
