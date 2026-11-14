@@ -1945,3 +1945,86 @@ drops below the 1 MiB class, so every 1 MiB malloc goes to the shared L2.
    slots now go there and are spliced onto the thread list.  They return
    at thread exit (the DLL walk drains every local id); while the thread
    lives, only if it allocates from that chunk again.
+
+## Run: Linux, Emerald Rapids @ 2.10 GHz, 2026-11-13/14 — `perf/mt-scaling-and-rss` at `73ccad2f2`
+
+The branch was rewritten after the `06b902f58` run above (that commit is now
+`backup/perf-mt-06b902f58`).  It is two commits on master `12214c166`:
+- `09dd96add`: whole-word claim, and a cross-thread batch for FS=false
+  ALIGN ≤ 64 through `push_var` with `CAP_VAR = 256`.
+- `73ccad2f2`: the L1 per-thread depth `k_eff` scales down before
+  size classes are dropped.
+
+The RSS-reclaim parts of `06b902f58` are gone (`s_live_pool_threads`, the
+`tl_reclaim_idle` scaling, the vacant floor).  Arms: base `12214c166`, old
+`06b902f58`, branch.  Host: family 6 model 207, 4 vCPU.  Also tested merged
+onto master `2308984dc`, which carries `894ebfbf5` (`kame_pool_trim()` flushes
+the cross-thread batch); the merge is clean.
+
+**Correctness — clean.**
+- no-DCAS audit: 3/3 ok.
+- ctest on the nine trees: all passed (51/51; 44/44 on the two i486 trees).
+  Merged onto master, release and asserts: 52/52 each.
+- Dedicated-size sweep with asserts on, 77 sizes on five trees: 0 failed.
+- Soaks, 4 concurrent copies, 9 404 runs, 0 nonzero:
+  - LP64 release: 15 tests, 100 runs each.
+  - The other eight trees: 52 each.
+  - Both merged trees: 52 each, and they add `alloc_trim_cross_test`.
+  - The 15 tests are those of the `06b902f58` run.
+  - A container restart stopped the run after six trees; the other five
+    were run on resume.
+
+**Throughput** (9 reps, arms interleaved, paired, sign test; gcc / clang):
+
+| | base | old `06b902f58` | branch | branch / base | branch / old |
+|---|---|---|---|---|---|
+| `mt_loop` 1 MiB, 32 threads | 62 / 78 | 611 / 637 | 604 / 603 | **9.7× / 7.5×** | 0.97 / 1.00 |
+| `mt_loop` 1 MiB, 64 threads | 24 / 31 | 592 / 620 | 594 / 632 | **25× / 20×** | 1.00 / 1.00 |
+| `mt_loop` 1 MiB, 128 threads | 18 / 23 | 561 / 576 | 575 / 592 | **32× / 25×** | 1.03 / 1.00 |
+| `mt_loop` 1 MiB, 4 / 16 threads | 511–616 | 562–616 | 513–610 | 0.93–1.08 | 0.90–0.98 |
+| ring 1 KiB, 32 in flight (pinned) | 2.8 / 3.0 | 5.4 / 5.1 | 6.0 / 5.7 | **2.04× / 1.94×** (9/9) | **1.13 / 1.12** (9/9, 8/9) |
+| `bench_xthread -w 2`, 1 KiB | 24.8 / 26.9 | 24.1 / 27.0 | 26.8 / 32.1 | 1.12 / 1.20 (6/9, 8/9) | 1.16 / 1.30 |
+| ring 64 B; `bench_xthread` 64 B / 64 KiB | — | — | — | 0.98–1.03 | 0.93–0.99 |
+| `bench_loop` 64 B / 1 KiB / 16 KiB | — | — | — | 0.95–1.18 | 0.95–1.05 |
+
+- The first pass put gcc `bench_loop` 1 MiB at 0.85× of base (2/9 up,
+  p 0.18).  A quiet re-run, 15 reps paired, measures 1.06× (gcc) and 1.01×
+  (clang) at 1 MiB, and 1.00× / 1.05× at 64 KiB: noise.
+
+**RSS** (`mt_rss`, median MiB, with all threads alive / after join; gcc):
+
+| threads | base | old `06b902f58` | branch |
+|---|---|---|---|
+| 8 | 85 / 19 | 84 / 9 | 84 / 10 |
+| 16 | 164 / 38 | 163 / 22 | 163 / 19 |
+| 32 | 323 / 76 | 322 / 56 | 322 / 36 |
+| 64 | 641 / 176 | 639 / 101 | 638 / **67** |
+
+- clang is the same within a few MiB (64 threads: 168 / 106 / 64).
+- Without the explicit reclaim code, the RSS after join is lower than
+  `06b902f58`'s.  The shallower per-thread L1 (`k_eff`) is the likely
+  reason; not isolated here.
+- The long-lived consumer (`consumer_rss 1024 20000 30`): base 58.5 MiB,
+  old 59.7, branch 58.7.  The §35 cost is down from ~1 MB to ~0.2 MB with
+  `CAP_VAR = 256`.
+
+**Instructions** (callgrind; base → old → branch):
+
+| | gcc | clang |
+|---|---|---|
+| owner pair 128 B / 1 KiB | 87→90→90 / 93→96→96 | 76→79→80 / 81→84→84 |
+| owner pair 1 MiB | 135→135→**137** | 116→116→**120** |
+| cross-thread free 64 B | 317→292→317 | 300→292→300 |
+| cross-thread free 128 B / 1 KiB | 260→306→**292** / 271→325→**315** | 248→307→**279** / 257→332→**305** |
+
+- The 1 MiB +2 / +4 fits the `k_eff` load in the new `do`/`while`
+  loops; not traced this time.  It does not show in time (above).
+- 64 B FS=true is back on `push_direct` (base's count).
+
+**Review notes, carried over:**
+- Settled: the §35 reversal is now bounded by `CAP_VAR = 256`, and the
+  comments that said FS=false never joins the batch are rewritten.
+- Still open:
+  - `extra_sidx[sizeof(FUINT) * 8 / 2]` relies on N ≥ 2 with no assert.
+  - The §tl-cap comment (allocator.cpp, around line 313) still says a
+    chunk's `m_freelist_head[]` only carries FS=true slots.
