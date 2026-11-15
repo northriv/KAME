@@ -1,3 +1,40 @@
+* Sun Nov 15 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamepoolalloc v1.4.0: the two changes below, with kame_pool_trim()'s
+  flush of the cross-thread batch and the atomic_smart_ptr fixes (Oct 23).
+- kamepoolalloc: 1 MiB blocks stay in the thread's L1 at any thread count.
+  Each thread's L1 took g_lrc_cap / threads, LRC_K_L1 = 32 blocks deep, so
+  the largest size it would hold was a 32nd of that share; past 26 threads
+  under the 1 GiB default it fell below the 1 MiB class, and every 1 MiB
+  malloc and free went to the global L2's CAS.  bench-style loops of
+  malloc(1 MiB) / free at 32 / 64 / 128 threads ran 62 / 24 / 18 M ops/s
+  (gcc, Linux x86-64, 4 vCPU), against 615 at 16.  Now the depth scales
+  first -- k_eff = per-thread share / 4 MiB, clamped to 1..32 -- and size
+  classes are dropped only when one block per class no longer fits, so
+  k_eff x the largest class stays within the share and the cap still
+  bounds the total.  The same loops run 604 / 594 / 575 (7.5-32x, gcc and
+  clang), RSS after 64 threads exit 176 -> 67 MiB.  Up to 8 threads keep
+  k_eff = 32; at 4 and 16 threads the loops are level.  The fast paths read k_eff off the L1
+  (L1Storage), so KameTlsPage's layout is unchanged; a 1 MiB malloc + free
+  is 2 instructions longer (gcc; 4 clang), level in time.  New scenario:
+  alloc_dedicated_fast_test's mt_k_eff.
+- kamepoolalloc: the variable-size borrow tiers up to ~2 KiB (FS=false,
+  ALIGN 32 and 64) hand a block between threads 1.9-2.0x as fast (SPSC
+  ring of 1 KiB blocks, 32 in flight; bench_xthread -w 2 at 1 KiB
+  1.12-1.20x).  A miss claims every free run of the bitmap word in one CAS,
+  the extra slots onto the thread's list; a free into another thread's
+  chunk joins the freeing thread's batch, sorted at flush so a word's slots
+  return in one CAS; it used to return each slot at once.  That batch holds
+  at most 256 such slots (CAP_VAR; 1024 for the FS=true slots), ~256 KiB
+  at 1 KiB: a thread that frees blocks it never allocates keeps that much
+  bit-set until it allocates, exits or trims -- the reason these tiers had
+  stayed out of the batch -- measured at +0.2 MiB over 30 producer cycles.
+  A cross-thread free of 128 B / 1 KiB is 32-48 instructions longer, for
+  fewer cross-core CASes.
+- Verified on Linux x86-64 (gcc 13, clang): ctest on LP64, i586 and i486,
+  with and without assertions, and with the harshest thread-list cap,
+  51/51 (i486 44/44), merged onto master 52/52; the no-DCAS audit; soaks
+  9 404 runs without a failure.
+
 * Fri Oct 23 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - kamepoolalloc: kame_pool_trim() now flushes the calling thread's batch of
   cross-thread frees as well.  A free of a small slot in another thread's
