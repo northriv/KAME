@@ -323,8 +323,11 @@ if(USE_KAME_ALLOCATOR)
     # layer that the bench/README head-to-head numbers depend on.
     add_executable(malloc_intercept_test malloc_intercept_test.cpp)
     target_link_libraries(malloc_intercept_test kamepoolalloc Threads::Threads)
-    add_executable(alloc_setenv_test alloc_setenv_test.cpp)
-    target_link_libraries(alloc_setenv_test kamepoolalloc Threads::Threads)
+    # POSIX-only (setenv/unsetenv, which MinGW does not have).
+    if(NOT WIN32)
+        add_executable(alloc_setenv_test alloc_setenv_test.cpp)
+        target_link_libraries(alloc_setenv_test kamepoolalloc Threads::Threads)
+    endif()
 
     # (contrib) C++17 Allocator concept conformance for
     # `kame::pool_allocator<T>` — exercises rebind, propagate_on_*,
@@ -443,7 +446,9 @@ enable_testing()
 if(USE_KAME_ALLOCATOR)
     add_test(NAME c_api_test COMMAND c_api_test)
     add_test(NAME malloc_intercept_test COMMAND malloc_intercept_test)
-    add_test(NAME alloc_setenv_test COMMAND alloc_setenv_test)
+    if(NOT WIN32)
+        add_test(NAME alloc_setenv_test COMMAND alloc_setenv_test)
+    endif()
     add_test(NAME alloc_huge_test COMMAND alloc_huge_test)
     add_test(NAME alloc_calloc_zero_test COMMAND alloc_calloc_zero_test)
     add_test(NAME alloc_aligned_test COMMAND alloc_aligned_test)

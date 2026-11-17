@@ -1210,8 +1210,15 @@ static bool kame_env_on(const char *name) noexcept {
 	return e && e[0] != '\0' && e[0] != '0';
 }
 
+//! Also called by each activator below (idempotent): where the priority-
+//! tagged constructor record is dropped (the Windows case the backup
+//! activator exists for), the knobs would otherwise keep their defaults for
+//! good -- KAME_POOL_VERBOSE=1 included, the switch that shows the pool is on.
+//! Every caller runs at load, never from an allocation.
 [[gnu::used]] __attribute__((constructor(101)))
 static void kame_pool_read_env() noexcept {
+	if(g_kame_pool_env_read.load(std::memory_order_acquire))
+		return;
 	KamePoolEnv env;
 	env.prefill_disabled = kame_env_on("KAME_POOL_DISABLE_PREFILL");
 	env.prewarm = kame_env_on("KAME_ALLOC_PREWARM");
@@ -1355,6 +1362,7 @@ static void kamepoolalloc_auto_activate() noexcept {
     // kame_patch_all_modules.  Idempotent + KAME_POOL_WIN_REDIRECT=0.
     kame_pool_win_install_redirect();
 #endif
+    kame_pool_read_env();
     g_sys_image_loaded = true;
 }
 // Backup: a file-scope global whose default constructor unconditionally
@@ -1369,6 +1377,7 @@ struct KamePoolAutoActivator {
 #if defined(_WIN32) || defined(__WIN32__) || defined(WINDOWS)
         kame_pool_win_install_redirect();  // see kamepoolalloc_auto_activate
 #endif
+        kame_pool_read_env();
         g_sys_image_loaded = true;
     }
 };
@@ -1392,6 +1401,7 @@ void activateAllocator() {
     // by the LdrRegisterDllNotification hook installed here.
     kame_pool_win_install_redirect();
 #endif
+    kame_pool_read_env();
     g_sys_image_loaded = true;
 }
 #endif
