@@ -1167,24 +1167,75 @@ std::atomic<int> g_rt_os_policy{0};                    // KAME_RT_OS_ALLOW
 // region lists (`thp_advise_regions`) closes that gap.
 std::atomic<int> g_thp_policy{-1};
 
-//! Resolve the THP policy, consulting the environment exactly once if no
-//! explicit `kame_pool_set_thp_policy()` call has happened yet.  Lazy rather
-//! than a static initializer so the C API can win a race against the first
-//! region claim regardless of static-init order; the CAS makes concurrent
-//! first-readers agree, and re-resolution after an explicit set is impossible
-//! because the stored value is then >= 0.
+//! Every environment knob the allocator reads, read ONCE at load
+//! (`kame_pool_read_env`, a constructor(101) that runs before `main`), and
+//! never from an allocation.  getenv takes libc's environment lock on macOS
+//! (an os_unfair_lock, Darwin 27), and setenv holds that lock while its own
+//! malloc runs: with the dylib interposing malloc, that malloc came here, the
+//! first chunk of its size class read KAME_POOL_DISABLE_PREFILL by getenv, and
+//! libplatform aborted the process ("Trying to recursively lock an
+//! os_unfair_lock", SIGKILL) -- CPython's start-up setenv, every run, before
+//! its first line (2026-11-17, under DYLD_INSERT_LIBRARIES).  Until
+//! the constructor has run, every knob reads as its default: in a dylib build
+//! the pool is not active before then (kamepoolalloc_auto_activate, a later
+//! constructor of this file), and an inline build only misses a knob for the
+//! allocations of other images' initializers.
+struct KamePoolEnv {
+	bool prefill_disabled = false;   // KAME_POOL_DISABLE_PREFILL
+	bool prewarm = false;            // KAME_ALLOC_PREWARM
+	bool verbose = false;            // KAME_POOL_VERBOSE
+	bool auto_tune_off = false;      // KAME_POOL_AUTO_TUNE=0
+	int  thp = 0;                    // KAME_POOL_HUGEPAGE (1) / KAME_POOL_NOHUGEPAGE (2)
+};
+static KamePoolEnv g_kame_pool_env;
+static std::atomic<bool> g_kame_pool_env_read{false};   // set (release) once g_kame_pool_env holds the environment's
+
+//! The knobs: the environment's once the constructor has read them, else the
+//! defaults.  Cold paths only (a chunk or region claim, a banner, the lazy
+//! interval's first tune).
+static KamePoolEnv kame_pool_env() noexcept {
+	if(__builtin_expect(g_kame_pool_env_read.load(std::memory_order_acquire), 1))
+		return g_kame_pool_env;
+	return KamePoolEnv{};
+}
+
+static bool kame_env_on(const char *name) noexcept {
+	const char *e = std::getenv(name);
+	return e && e[0] != '\0' && e[0] != '0';
+}
+
+[[gnu::used]] __attribute__((constructor(101)))
+static void kame_pool_read_env() noexcept {
+	KamePoolEnv env;
+	env.prefill_disabled = kame_env_on("KAME_POOL_DISABLE_PREFILL");
+	env.prewarm = kame_env_on("KAME_ALLOC_PREWARM");
+	env.verbose = kame_env_on("KAME_POOL_VERBOSE");
+	const char *tune = std::getenv("KAME_POOL_AUTO_TUNE");
+	env.auto_tune_off = tune && tune[0] == '0' && tune[1] == '\0';
+	env.thp = kame_env_on("KAME_POOL_HUGEPAGE") ? 1 : kame_env_on("KAME_POOL_NOHUGEPAGE") ? 2 : 0;
+	g_kame_pool_env = env;
+	g_kame_pool_env_read.store(true, std::memory_order_release);
+	// The THP policy from the environment, unless kame_pool_set_thp_policy()
+	// has set one already (then the stored value is >= 0 and the CAS fails).
+	int expect = -1;
+	g_thp_policy.compare_exchange_strong(expect, env.thp, std::memory_order_relaxed,
+	                                     std::memory_order_relaxed);
+}
+
+//! Resolve the THP policy: the environment's (read at load by
+//! kame_pool_read_env) unless an explicit `kame_pool_set_thp_policy()` call
+//! has set one.  A region claimed before the constructor has run takes the
+//! default (KAME_THP_SYSTEM) without reading the environment -- see
+//! KamePoolEnv for why no allocation may call getenv; the CAS makes
+//! concurrent first-readers agree, and re-resolution after an explicit set is
+//! impossible because the stored value is then >= 0.
 static int thp_policy_resolved() noexcept {
 	int p = g_thp_policy.load(std::memory_order_relaxed);
 	if(__builtin_expect(p >= 0, 1)) return p;
-	int v = 0;                                         // KAME_THP_SYSTEM
-	const char *e = std::getenv("KAME_POOL_HUGEPAGE");
-	if(e && e[0] != '\0' && e[0] != '0')
-		v = 1;                                         // KAME_THP_ALWAYS
-	else {
-		e = std::getenv("KAME_POOL_NOHUGEPAGE");
-		if(e && e[0] != '\0' && e[0] != '0')
-			v = 2;                                     // KAME_THP_NEVER
-	}
+	// Before the constructor: the default, not latched, so that the
+	// constructor's CAS can still put the environment's in.
+	if( !g_kame_pool_env_read.load(std::memory_order_acquire)) return 0;
+	int v = g_kame_pool_env.thp;
 	int expect = -1;
 	g_thp_policy.compare_exchange_strong(expect, v, std::memory_order_relaxed,
 	                                     std::memory_order_relaxed);
@@ -1404,15 +1455,9 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	// fall back to the pre-§29 zero-init code path without rebuilding.
 	// Diagnostic switch only — if you're hitting a fresh-chunk corruption
 	// only on the Windows MinGW path, toggle this to confirm whether the
-	// pre-fill is involved.  Constructed once on first chunk claim,
-	// process-lifetime; the call to `std::getenv` here recurses into our
-	// own `operator new`-overridden path only when the env value is
-	// already cached (Windows MSVCRT) or via thread-safe local storage
-	// (glibc), neither of which routes through the pool's hot path.
-	static const bool s_prefill_enabled = []{
-		const char *e = std::getenv("KAME_POOL_DISABLE_PREFILL");
-		return !(e && e[0] != '\0' && e[0] != '0');
-	}();
+	// pre-fill is involved.  Read at load (KamePoolEnv): a getenv here, on
+	// a chunk claim, aborted a setenv that was mallocing on macOS.
+	const bool s_prefill_enabled = !kame_pool_env().prefill_disabled;
 	bool prefilled = false;
 #ifndef GUARDIAN
 	if constexpr (FS && DUMMY) if(s_prefill_enabled) {
@@ -2713,10 +2758,7 @@ PoolAllocatorBase::allocate_chunk() {
 	if( !addr)
 		return nullptr;   // region cap / mmap refusal → caller falls to malloc
 #if !(defined __WIN32__ || defined WINDOWS || defined _WIN32)
-	static const bool prewarm = [] {
-		const char *e = std::getenv("KAME_ALLOC_PREWARM");
-		return e && e[0] != '\0' && e[0] != '0';
-	}();
+	const bool prewarm = kame_pool_env().prewarm;   // read at load (KamePoolEnv)
 	if(prewarm) {
 		for(size_t off = 0; off < CHUNK_SIZE; off += ALLOC_PAGE_SIZE)
 			reinterpret_cast<volatile char *>(addr)[off] = 0;
@@ -6978,10 +7020,7 @@ PoolAllocatorBase::mmap_new_region() noexcept {
 	// compile this file in, since they define KAMEPOOLALLOC_DYLIB for its
 	// load-time activation.  KAME_POOL_VERBOSE=1 re-enables it there.
 #ifdef KAMEPOOLALLOC_DYLIB
-	static const bool s_banner = [] {
-		const char *e = getenv("KAME_POOL_VERBOSE");
-		return e && *e && *e != '0';
-	}();
+	const bool s_banner = kame_pool_env().verbose;   // read at load (KamePoolEnv)
 	if(s_banner)
 #endif
 	fprintf(stderr,
@@ -7588,8 +7627,7 @@ ALLOC_TLS_IE int          tls_lazy_cursor  = 0;                     // position 
 // direction (1 s ceiling).
 static void lrc_auto_tune_lazy_interval() noexcept {
 #if !(defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32))
-    const char *env = std::getenv("KAME_POOL_AUTO_TUNE");
-    if(env && env[0] == '0' && env[1] == '\0') return;
+    if(kame_pool_env().auto_tune_off) return;   // KAME_POOL_AUTO_TUNE=0, read at load (KamePoolEnv)
 
     constexpr std::size_t SZ = (std::size_t)32 * 1024 * 1024;
     void *p = mmap(nullptr, SZ, PROT_READ | PROT_WRITE,
