@@ -274,6 +274,10 @@ extern "C" void kame_pool_win_install_redirect() noexcept;
 // reads via fs:offset directly.  Same single-bool fits the IE budget
 // easily; updates happen exactly once per thread (at TLS teardown).
 ALLOC_TLS_IE bool s_alloc_tls_off = false;
+// (§29 watermark / §75 prewarm) True inside `kame_pool_prewarm()` so any
+// FS=true chunk claimed or watermark-expanded during explicit RT prewarm
+// faults and links its full slot capacity upfront rather than lazily.
+static ALLOC_TLS bool s_tls_in_prewarm = false;
 
 // Per-thread owner id for the deallocate owner-check fast path.  A
 // chunk stamps `m_owner_id = kame_owner_id()` at allocate_chunk; a
@@ -287,11 +291,18 @@ ALLOC_TLS_IE bool s_alloc_tls_off = false;
 // See allocator_prv.h for the rationale.
 static std::atomic<uint32_t> s_owner_id_next{1};
 static inline uint32_t kame_owner_id() noexcept {
-    uint32_t id = kame_page()->owner_id;
+    KameTlsPage *pg = kame_page();
+    uint32_t id = pg->owner_id;
     if(__builtin_expect(id == 0, 0)) {
+        // (§hot-tls teardown sentinel) Post-cleanup destructors on macOS read
+        // `&g_teardown_page` (`owner_id == 0, torn_down == 1`).  Never stamp a
+        // non-zero id onto a torn-down page or the shared sentinel: `owner_id`
+        // must stay 0 so the hot owner-check never matches it.
+        if(__builtin_expect(pg->torn_down != 0u, 0))
+            return 0;
         do { id = s_owner_id_next.fetch_add(1, std::memory_order_relaxed); }
         while(id == 0);   // skip the reserved 0 on 32-bit wrap
-        kame_page()->owner_id = id;
+        pg->owner_id = id;
     }
     return id;
 }
@@ -1411,13 +1422,17 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	PoolAllocatorBase(),
 	m_flags(reinterpret_cast<FUINT *>( &addr[((sizeof(PoolAllocator) + sizeof(FUINT) - 1) / sizeof(FUINT)) * sizeof(FUINT)])),
 	m_idx(0),
-	m_count(count) {
+	m_count(count),
+	m_prefill_word(count) {
 	// BIT_OWNED set at construction — the chunk has an
 	// owner (the thread doing the chunk-claim and adding to its DLL).
 	// MASK_CNT init depends on path:
-	//   * FS=true real chunk (`FS && DUMMY`, pre-fill below): every
-	//     m_flags bit gets set to 1 and every slot is linked into the
-	//     chunk-local freelist.  MASK_CNT = count (all words non-empty).
+	//   * FS=true real chunk (`FS && DUMMY`, watermark pre-fill below):
+	//     words `[0, init_w)` (1 OS page of slots, or all `count` words
+	//     inside `kame_pool_prewarm`) get all bits set to 1 and their slots
+	//     linked into `m_freelist_head[0]`; words `[init_w, count)` stay 0
+	//     with their slot pages unfaulted until `allocate_pooled` advances
+	//     `m_prefill_word`.  `MASK_CNT = init_w`.
 	//   * FS=false base ctor pass (`FS && !DUMMY`) or the GUARDIAN
 	//     debug path: bits stay 0; MASK_CNT = 0; allocate_pooled bumps
 	//     it on the first bitmap-CAS claim.
@@ -1476,47 +1491,48 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 	const bool s_prefill_enabled = !kame_pool_env().prefill_disabled;
 	bool prefilled = false;
 #ifndef GUARDIAN
-	if constexpr (FS && DUMMY) if(s_prefill_enabled) {
+	if constexpr (FS && DUMMY) if(s_prefill_enabled && count > 0) {
 		prefilled = true;
-		// (§29) FS=true freelist pre-fill at chunk-claim.
+		// (§29 watermark) FS=true lazy watermark freelist pre-fill.
 		//
-		// Non-atomically link ALL slots into the chunk-local freelist
-		// (LIFO; slot's first 8 B = next pointer, its next 8 B = 0, the
-		// count a thread list reads, §tl-cap) and set every m_flags
-		// bit to 1.  Effect on the alloc paths:
-		//   * fresh-chunk first alloc (cold path through
-		//     `allocate_chunk_path` → `allocate_pooled`): the
-		//     freelist_pop check at the head of allocate_pooled (§29)
-		//     pops slot 0 in O(1) — no bitmap-CAS find-zero scan.
-		//   * steady state: that same miss then moves the rest of the
-		//     chain onto the thread's empty list in one store (tc_miss,
-		//     §thread-list), and the hot path (`new_redirected`) pops it
-		//     from there.
+		// Instead of dirtying every page of the 256..512 KiB chunk up front
+		// (up to 16,128 slots = 64 minor faults per chunk, 6 MiB/thread across
+		// the 17 FS=true buckets even when a thread allocates 1 object per
+		// bucket), pre-fill ONLY 1 OS page worth of bitmap words (`kInitWords`,
+		// >= 1 word) at chunk claim, leaving words `[init_w, count)` virgin
+		// (`m_flags == 0`, slot pages untouched).  Inside `kame_pool_prewarm`
+		// (`s_tls_in_prewarm`), pre-fill all `count` words immediately so hard-RT
+		// prewarm faults the entire chunk before entering the RT section.
+		//
+		// Effect on the alloc paths:
+		//   * fresh-chunk first alloc (`allocate_chunk_path` → `allocate_pooled`):
+		//     `freelist_pop(0)` pops slot 0 in O(1), and `tc_miss` splices the
+		//     rest of the initial 1-page chain onto the thread's empty list in
+		//     one store.
+		//   * subsequent misses: while `m_prefill_word < m_count`,
+		//     `expand_prefill_watermark()` advances `m_prefill_word` by a
+		//     bounded ~16 KiB step (`kStepWords`), splicing that step onto the
+		//     thread list via `tc_miss`.  Sparse / owner-local threads stay inside
+		//     1 warm page; sustained cross-thread rings quickly reach `m_count`
+		//     so producer and consumer spread across all `m_flags[]` cache lines
+		//     without false sharing, then use the unchanged bitmap-CAS scan.
 		//
 		// Lifecycle invariants (INV-6, INV-7, INV-15..18) preserved:
-		// every pre-filled slot's m_flags bit IS set, so "bit set ⇔ slot
-		// live in user OR in owner freelist" holds throughout.  Cross-
-		// thread frees CAS-clear bits and dec MASK_CNT on word-empty
-		// exactly as before; owner-exit drain in
-		// release_dll_chunks_for_thread feeds each remaining freelist
-		// entry through batch_return_to_bitmap, which clears the bit and
-		// decs MASK_CNT on word-empty by the same path.
-		//
-		// Side benefit (automatic prewarm): the per-slot 8-byte next-
-		// pointer write page-faults every slot's first page, so the
-		// first user access is hot.  Matters for the cold-start path
-		// of alloc-heavy workloads.
-		//
-		// Owner-exclusive at this point — the chunk is not yet in the
-		// thread's DLL nor stamped into the radix — so non-atomic stores
-		// on m_flags, m_flags_packed, m_freelist_head[0], and slot
-		// next-pointer fields are safe.
-		//
-		// FS=true serves a single bucket per (ALIGN) instantiation, so
-		// every slot's local-id is 0 (see `kBucketLocalId[]`).
-		constexpr unsigned FUINT_BITS_PF = sizeof(FUINT) * 8;
+		// every pre-filled slot in `[0, m_prefill_word)` has its `m_flags` bit
+		// set, so "bit set ⇔ slot live in user OR in owner freelist" holds
+		// identically; virgin words `[m_prefill_word, count)` have `m_flags == 0`
+		// and zero handed-out slots.  Thread-exit / `kame_pool_trim` only drains
+		// the `<= m_prefill_word` words actually materialised.
+		constexpr unsigned FUINT_BITS_PF = sizeof(FUINT) * 8u;
+		constexpr int kInitWords =
+		    ((size_t)ALLOC_PAGE_SIZE / ((size_t)ALIGN * FUINT_BITS_PF) > 1u)
+		        ? static_cast<int>((size_t)ALLOC_PAGE_SIZE / ((size_t)ALIGN * FUINT_BITS_PF))
+		        : 1;
+		const int init_w = __builtin_expect(s_tls_in_prewarm, 0)
+		    ? count
+		    : (kInitWords < count ? kInitWords : count);
 		const size_t N_slots =
-		    static_cast<size_t>(count) * FUINT_BITS_PF;
+		    static_cast<size_t>(init_w) * FUINT_BITS_PF;
 		char *base = this->mempool();
 		char *prev = nullptr;
 		for(size_t i = N_slots; i-- > 0; ) {
@@ -1528,10 +1544,13 @@ inline PoolAllocator<ALIGN, FS, DUMMY>::PoolAllocator(int count, char *addr) :
 		m_freelist_head[0] = base;
 		for(int b = 1; b < KAME_LOCAL_BUCKETS; ++b)
 			m_freelist_head[b] = nullptr;
-		for(int i = count - 1; i >= 0; --i)
+		for(int i = 0; i < init_w; ++i)
 			m_flags[i] = ~(FUINT)0u;
-		m_flags_packed = BIT_OWNED | static_cast<std::uint32_t>(count);
-		m_flags_filled_cnt = count;
+		for(int i = init_w; i < count; ++i)
+			m_flags[i] = 0;
+		m_flags_packed = BIT_OWNED | static_cast<std::uint32_t>(init_w);
+		m_flags_filled_cnt = init_w;
+		m_prefill_word = init_w;
 	}
 #endif
 	if( !prefilled) {
@@ -1682,14 +1701,64 @@ inline void PoolAllocator<ALIGN, FS, DUMMY>::operator delete(void *p) throw() {
 }
 
 template <unsigned int ALIGN, bool FS, bool DUMMY>
-inline void *
-PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
+KAME_NOINLINE void *
+PoolAllocator<ALIGN, FS, DUMMY>::expand_prefill_watermark() noexcept {
 #ifndef GUARDIAN
 	if constexpr (FS && DUMMY) {
-		// (§29) Freelist hit: slots chained by the whole-word claim below,
-		// or pre-filled at chunk claim, that tc_miss could not hand to the
-		// thread's list (it was not empty) -- usually none, as a miss
-		// moves the chain onto the list whole (§thread-list).
+		assert(this->m_prefill_word < this->m_count);
+		assert(this->m_freelist_head[0] == nullptr);
+		// (§29 watermark) Advance `m_prefill_word` by a bounded ~16 KiB step
+		// (`>= ALLOC_PAGE_SIZE`, `>= 1` word; or to `m_count` inside
+		// `kame_pool_prewarm`).  Words `[w, nw)` have never had any slot
+		// handed out, so zero cross-thread freers can touch `m_flags[w..nw)`;
+		// `m_flags_packed` and `m_flags_filled_cnt` use `atomicAdd` because
+		// freers may concurrently decrement words `< w`.
+		constexpr unsigned FUINT_BITS_PF = sizeof(FUINT) * 8u;
+		constexpr size_t kStepBytes =
+		    ((size_t)ALLOC_PAGE_SIZE > 16384u) ? (size_t)ALLOC_PAGE_SIZE : 16384u;
+		constexpr int kStepWords =
+		    (kStepBytes / ((size_t)ALIGN * FUINT_BITS_PF) > 1u)
+		        ? static_cast<int>(kStepBytes / ((size_t)ALIGN * FUINT_BITS_PF))
+		        : 1;
+		const int w = this->m_prefill_word;
+		const int step = __builtin_expect(s_tls_in_prewarm, 0)
+		    ? (this->m_count - w) : kStepWords;
+		const int nw = (w + step < this->m_count) ? (w + step) : this->m_count;
+		const int delta_w = nw - w;
+		const size_t first_slot = static_cast<size_t>(w) * FUINT_BITS_PF;
+		const size_t end_slot   = static_cast<size_t>(nw) * FUINT_BITS_PF;
+		char *base = this->mempool();
+		char *prev = nullptr;
+		for(size_t i = end_slot; --i > first_slot; ) {
+			char *slot = base + i * ALIGN;
+			reinterpret_cast<char **>(slot)[0] = prev;
+			reinterpret_cast<intptr_t *>(slot)[1] = 0;   // (§tl-cap) not counted
+			prev = slot;
+		}
+		this->m_freelist_head[0] = prev;
+		for(int i = w; i < nw; ++i)
+			atomicStoreRelaxed(&this->m_flags[i], ~(FUINT)0u);
+		atomicAdd(&this->m_flags_packed, static_cast<std::uint32_t>(delta_w));
+		atomicAdd(&this->m_flags_filled_cnt, delta_w);
+		if(atomicLoadRelaxed(&this->m_flags_filled_cnt) * 5 >= this->m_count * 4)
+			tls_cross_dealloc_batch.flush();
+		this->m_prefill_word = nw;
+		writeBarrier();
+		return base + first_slot * ALIGN;
+	}
+#endif
+	return nullptr;
+}
+
+template <unsigned int ALIGN, bool FS, bool DUMMY>
+inline void *
+PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int /*SIZE*/) {
+#ifndef GUARDIAN
+	if constexpr (FS && DUMMY) {
+		// (§29) Freelist hit: slots chained by the whole-word claim or
+		// watermark step, or pre-filled at chunk claim, that tc_miss could
+		// not hand to the thread's list (it was not empty) -- usually none,
+		// as a miss moves the chain onto the list whole (§thread-list).
 		//
 		// `freelist_pop` is non-atomic — only the owner thread touches
 		// `m_freelist_head[0]`, and the cold path is itself owner-only
@@ -1697,6 +1766,14 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 		// slow_allocate, both single-threaded for this chunk).
 		if(void *p = this->freelist_pop(0))
 			return p;
+		// (§29 watermark) While virgin words remain in `[m_prefill_word,
+		// m_count)`, materialize the next ~16 KiB step before falling back to
+		// the bitmap scan.  Sparse / owner-local threads never miss past page
+		// 0; sustained cross-thread rings quickly reach `m_count` so producer
+		// and consumer spread across all `m_flags[]` cache lines without false
+		// sharing, after which this single cold branch is never taken again.
+		if(__builtin_expect(this->m_prefill_word < this->m_count, 0))
+			return this->expand_prefill_watermark();
 	}
 #endif
 	FUINT one;
@@ -1706,16 +1783,9 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 		FUINT oldv = atomicLoadRelaxed(pflag);
 		if(oldv != ~(FUINT)0u) {
 			one = find_zero_forward(oldv);
-//			assert(count_bits(one) == SIZE / ALIGN);
-//			assert( !(one & oldv));
-			// Always-CAS path (formerly an oldv==0 non-atomic fast write
-			// existed here). Without an external lock around the chunk —
-			// which the TLS s_tls.my_chunk fast path in allocate() removes —
-			// the non-atomic store would race with another thread doing
-			// the same on the same flag word, producing torn writes that
-			// hand the same bit to two threads. CAS even at oldv==0 is
-			// only marginally slower and keeps the chunk thread-safe.
-			FUINT newv = oldv | one; //set a flag.
+			// Always-CAS path: keeps the word race-safe against concurrent
+			// cross-thread `batch_clear_impl` clears on the same flag word.
+			FUINT newv = oldv | one;
 #ifndef GUARDIAN
 			// (§thread-list) FS=true takes the whole word: every zero bit
 			// in this one CAS, the ones besides `one` chained below.
@@ -1726,38 +1796,17 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 				if(oldv == 0)
 					atomicInc( &this->m_flags_packed);
 				if(newv == ~(FUINT)0u) {
-                    atomicInc( &this->m_flags_filled_cnt);
-                    // Proactive Phase 3 trigger: when this chunk hits 4/5
-                    // (80 %) of its words fully filled, flush this
-                    // thread's cross-dealloc batch.  Any batched frees
-                    // for OTHER chunks land back in their bitmaps,
-                    // letting the next chunk-full event's DLL scan
-                    // (Phase 2) find recovered space before mmaping
-                    // fresh memory.  Sampled at word-fill granularity
-                    // (~1 in FUINT_BITS = 64 allocs) so the overhead is
-                    // amortised; `flush()` is a no-op when the batch is
-                    // empty so post-cross-event calls are cheap.
-                    // Relaxed load: a cross-thread free's OnClearFn
-                    // atomicDec()s this counter concurrently (TSan).
-                    // m_count is fixed at construction.
-                    if(atomicLoadRelaxed(&this->m_flags_filled_cnt) * 5
-                            >= this->m_count * 4)
-                        tls_cross_dealloc_batch.flush();
-                }
+					atomicInc( &this->m_flags_filled_cnt);
+					if(atomicLoadRelaxed(&this->m_flags_filled_cnt) * 5
+					        >= this->m_count * 4)
+						tls_cross_dealloc_batch.flush();
+				}
 				writeBarrier(); //for the counters.
 #ifndef GUARDIAN
 				if constexpr (FS && DUMMY) {
-					// (§thread-list) The other slots the CAS claimed, in
-					// address order, onto the freelist (empty, or the pop
-					// above would have served), which tc_miss hands to the
-					// thread's list whole.  When cross-thread frees are what
-					// refills the chunk -- a producer whose consumer frees
-					// -- that is one cold trip and one CAS per word instead
-					// of per slot: the word cache's claim, its slots handed
-					// out by the list's pop instead of a cold-path ctz.
-					// SPSC ring of 64 B blocks, 32 in flight, M3: 16 M
-					// ops/s claiming per slot, 50 so; 28 with the word
-					// cache.
+					// (§thread-list) Chain the other slots the CAS claimed, in
+					// address order, onto `m_freelist_head[0]`, which `tc_miss`
+					// splices onto the thread's list in one store.
 					FUINT rest = newv & ~oldv & ~one;
 					if(rest) {
 						char *wbase = this->mempool()
@@ -1781,16 +1830,13 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 			}
 			continue;
 		}
-		// (§94pct-gate) FS=true: bail when ≥ 93.75 % (= 1 − 1/16) of
+		// (§94pct-gate) FS=true: bail when >= 93.75 % (= 1 - 1/16) of
 		// words are already 100 % filled.  Reached only after the walk
 		// hit a fully-filled word — at that point we already KNOW the
 		// chunk is saturated enough that adjacent words are likely also
 		// full.  Bailing here hands the alloc off to a less-saturated
 		// chunk in the DLL (or a fresh mmap) instead of walking the
-		// remaining 6 % of sparse-free-bit words.  Accepted trade-off:
-		// ~6 % slot under-utilisation in exchange for cutting the
-		// worst-case walk.  The check stays inside the loop (not at the
-		// entry) so bench_loop's tight FS=true 64 hot path pays nothing.
+		// remaining 6 % of sparse-free-bit words.
 		if(atomicLoadRelaxed(&this->m_flags_filled_cnt) >=
 		   this->m_count - this->m_count / 16)
 			return 0;
@@ -1801,11 +1847,8 @@ PoolAllocator<ALIGN, FS, DUMMY>::allocate_pooled(unsigned int SIZE) {
 	}
 
 	int sidx = count_zeros_forward(one);
-
 	this->m_idx = idx;
-
-	void *p = &this->mempool()[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN];
-	return p;
+	return &this->mempool()[(idx * sizeof(FUINT) * 8 + sidx) * ALIGN];
 }
 
 template <unsigned int ALIGN, bool DUMMY>
@@ -3249,9 +3292,14 @@ void PoolAllocator<ALIGN, FS, DUMMY>::fit_file(PoolAllocator<ALIGN, DUMMY, DUMMY
 	if(c->m_fit_cls < 0)
 		fit_reclass(c);
 }
-// (§fit) FS=true: room while allocate_pooled's §94pct-gate lets it claim.
+// (§fit) FS=true: room while virgin watermark words remain or allocate_pooled's
+// §94pct-gate lets it claim.
 template <unsigned int ALIGN, bool FS, bool DUMMY>
 unsigned PoolAllocator<ALIGN, FS, DUMMY>::fit_class() noexcept {
+	if constexpr (FS && DUMMY) {
+		if(this->m_prefill_word < this->m_count)
+			return 0u;
+	}
 	return (atomicLoadRelaxed(&this->m_flags_filled_cnt)
 	        < this->m_count - this->m_count / 16) ? 0u : 0xFFu;
 }
@@ -7400,7 +7448,9 @@ LrcKArray g_lrc[LRC_K_MAX];
 // Pointer-width atomics so i486 (no CMPXCHG8B) doesn't need libatomic.
 // On 32-bit, size_t = uint32_t = 4 GiB ceiling; the README's documented
 // 32-bit cap is 3 GiB, so it fits with headroom.  64-bit unchanged.
-std::atomic<size_t> g_lrc_bytes{0};
+// Isolated to its own cache line so L2 `g_lrc_bytes` updates do not false-share
+// with `g_large_alloc_count` / `g_large_alloc_bytes` (or L1-hitting threads).
+alignas(KAME_CACHE_LINE) std::atomic<size_t> g_lrc_bytes{0};
 std::atomic<size_t> g_lrc_cap{(size_t)1 << 30};                       // ~1 GiB default
 
 // idx = 4 * octave + 2-bit_mantissa, integer-only (no libm).
@@ -7446,26 +7496,53 @@ inline void lrc_release(char *base, std::size_t size, unsigned kind) noexcept {
 // kstart: thread-unique starting K offset for push/pop loops.  Reuses
 // `kame_owner_id()` (already IE-TLS-cached, allocated on first allocator use
 // from a global atomic counter — see top of file) so this introduces no new
-// global state or TLS variable.
+// global state or TLS variable.  Post-teardown or pre-init threads use slot 0
+// via `kame_page_or_null()` so teardown frees never enter `kame_page_cold()`.
 inline int lrc_kstart_g() noexcept {
-    return (int)(kame_owner_id() & (LRC_K_MAX - 1));
+    KameTlsPage *pg = kame_page_or_null();
+    if(__builtin_expect(pg == nullptr || pg->torn_down != 0u, 0))
+        return 0;
+    uint32_t id = pg->owner_id;
+    if(__builtin_expect(id == 0u, 0))
+        id = kame_owner_id();
+    return (int)(id & (LRC_K_MAX - 1));
 }
-inline int lrc_kstart_l1() noexcept {
-    return (int)(kame_owner_id() & (LRC_K_L1 - 1));
-}
-
 // =====================================================================
-// Per-thread L1 in front of the global L2 cache (§28).
+// Per-thread L1 in front of the global L2 cache (§28, demand-gated).
 // =====================================================================
 // Same K-major shape as the global cache, but in TLS.  Per-thread: no
 // atomics, no false-sharing concern, but the structure is symmetric for
-// readability.  Both LRC_CHUNK and LRC_MMAP enter L1 as long as their idx is
-// ≤ `tls_l1_max_idx` (the per-thread byte-budget cut, set at thread arm).
+// readability.  Both LRC_CHUNK and LRC_MMAP enter L1 ONLY when:
+//   (a) `idx <= cut_idx` (the per-thread byte-budget cut, set at arm and
+//       encoded as `cut_idx + 1` in `KameTlsPage::lrc_l1_mask` bits 26..30), AND
+//   (b) bit `idx` (`0..24`) is set in `KameTlsPage::lrc_l1_mask`, which opens
+//       on demand when THIS thread actually requests `idx` in `l1_pop_fit`.
 //
-// TLS model (§23 lesson preserved): the L1 ARRAY is plain `__thread` (GD)
-// because it is too big for the initial-exec surplus.  Its per-thread base
-// is taken once and cached in an IE-TLS pointer — hot-path access is one
-// `fs:offset` read, never `__tls_get_addr`.
+// Demand gating closes asymmetric producer/consumer stranding (e.g. an asset-
+// streaming thread allocating 1..32 MiB while a game/render thread only
+// allocates <= 64 KiB and frees the streamed blocks): unrequested bands bypass
+// the consumer's private L1 and go directly to the shared global L2 where the
+// producer reuses them immediately and `g_lrc_cap` / `lrc_lazy_mmap_one()`
+// bound total residency.  Pure consumer threads never even arm `l1_base()`,
+// avoiding `g_lrc_l1_threads` inflation for real allocators.
+//
+// Hot-path TLS model (§23 + §hot-tls): `tls_l1_storage` is plain `__thread` (GD,
+// 6.4 KiB/thread).  Both its base (`lrc_l1`) and the packed control/demand word
+// (`lrc_l1_mask`) live in `KameTlsPage` (`kame_page()`), so `l1_pop_fit` and
+// `l1_push` pay zero `_tlv_get_addr` (macOS) or `_tls_index` (Windows) calls on
+// L1 hits and over-cut L2 misses alike.
+
+constexpr uintptr_t LRC_L1_MMAP_ANY_MASK =
+    (((uintptr_t)1u << (unsigned)(LRC_N_MAX_L1 - LRC_CHUNK_BND)) - 1u)
+    << (unsigned)(LRC_CHUNK_BND + 1);                                   // bits 17..24
+constexpr uintptr_t LRC_L1_MMAP_DEMAND_BIT =
+    (uintptr_t)1u << (unsigned)(LRC_N_MAX_L1 + 1);                      // bit 25 (>LRC_N_MAX_L1)
+constexpr unsigned  LRC_L1_CUT_SHIFT = (unsigned)(LRC_N_MAX_L1 + 2);    // bit 26
+constexpr uintptr_t LRC_L1_CUT_MASK  = (uintptr_t)0x1Fu << LRC_L1_CUT_SHIFT;
+static_assert(LRC_N_MAX_L1 == 24
+              && LRC_L1_CUT_SHIFT + 5u <= sizeof(uintptr_t) * 8u,
+              "L1 demand bits (0..24), MMAP >L1 demand bit (25), and 5-bit "
+              "cut+1 (26..30) must fit inside uintptr_t (ILP32 + LP64)");
 
 struct L1KArray {
     char *slots[LRC_N_MAX_L1 + 1];     // 25 char* = 200 B (no alignas — TLS)
@@ -7476,17 +7553,15 @@ struct L1Storage {
 };
 ALLOC_TLS    L1Storage tls_l1_storage;            // GD TLS (too big for IE surplus)
 ALLOC_TLS_IE L1KArray *tls_l1         = nullptr;  // cached &tls_l1_storage.rows[0] (IE)
-ALLOC_TLS_IE int       tls_l1_max_idx = -1;       // per-thread idx ceiling (set lazily)
-ALLOC_TLS_IE unsigned  tls_l1_k_eff   = LRC_K_L1; // per-thread effective K depth (IE)
 // (teardown) Set true by `l1_drain()` once this thread's L1 has been flushed
 // to the global L2 at thread exit.  A large/dedicated free arriving AFTER the
 // drain — e.g. from a pthread_key destructor freeing an XThreadLocal buffer,
 // which glibc runs AFTER the C++ thread_local `l1_drain` dtor — must NOT
 // repopulate the L1: nothing will flush it again, so the block's units stay
 // claimed forever (unbounded thread-exit stranding, see
-// tests/alloc_thread_exit_free_test.cpp scenario B).  When set, `l1_push`
-// refuses and `recycle_push` falls through to `global_push` (global L2 —
-// touches no TLS, safe at teardown) or, on refusal, a direct release.
+// tests/alloc_thread_exit_free_test.cpp scenario B).  `l1_drain()` zeroes
+// `g_tls_page.lrc_l1_mask` (`cut_p1 == 0`) and sets `s_l1_drained = true` so
+// `l1_push` refuses off the page mask and `l1_arm_and_open_cold` refuses re-arm.
 ALLOC_TLS_IE bool      s_l1_drained   = false;
 
 // Live count of threads that have armed an L1.  Sloppy by design — each
@@ -7501,19 +7576,20 @@ void l1_drain() noexcept;   // fwd (defined after global_push)
 struct L1Drain { void touch() noexcept {} ~L1Drain() noexcept { l1_drain(); } };
 thread_local L1Drain tls_l1_drain;
 
-// Materialise the L1 base (one-time per thread: cache the GD array address
-// into the IE-TLS pointer, compute the per-thread effective K depth and
-// index cut, arm drain).
+// Materialise the L1 base (one-time per thread on first `l1_pop_fit` within
+// `[0, LRC_N_MAX_L1]`: cache the GD array address, compute the per-thread
+// effective K depth and index cut, ensure `owner_id` is assigned for
+// `kstart`, encode `cut_idx + 1` in `g_tls_page.lrc_l1_mask`, and arm drain).
 //
 // Two-phase budget derivation (mirrors §28's two-phase eviction: reduce K
 // depth before dropping size classes so the chunk tier [0, LRC_CHUNK_BND]
 // stays in L1 at high thread counts while strictly bounding aggregate L1 RSS
 // by g_lrc_cap):
-//   per_thread     = g_lrc_cap / live_threads
-//   k_eff          = clamp(per_thread / ALLOC_MAX_CHUNK_SIZE, 1, LRC_K_L1)
-//   cut_size       = per_thread / k_eff
-//   tls_l1_max_idx = (cut_size < LRC_LO) ? -1
-//                    : min(lrc_idx_natural(cut_size), LRC_N_MAX_L1)
+//   per_thread = g_lrc_cap / live_threads
+//   k_eff      = clamp(per_thread / ALLOC_MAX_CHUNK_SIZE, 1, LRC_K_L1)
+//   cut_size   = per_thread / k_eff
+//   cut_idx    = (cut_size < LRC_LO) ? -1
+//                : min(lrc_idx_natural(cut_size), LRC_N_MAX_L1)
 // Since k_eff * cut_size <= per_thread for every live_threads >= 1 and every
 // g_lrc_cap >= 0, each thread's L1 holds at most per_thread bytes in its top
 // admitted class (and geometric-sum dominated across smaller classes), keeping
@@ -7525,6 +7601,9 @@ thread_local L1Drain tls_l1_drain;
 //                  k_eff spill to the byte-capped global L2.
 //   - per_thread < 4 MiB : k_eff = 1 and cut_idx drops larger classes first
 //                          (or disables L1 with cut_idx = -1 when < 256 KiB).
+// Kind-agnostic — both LRC_CHUNK and LRC_MMAP fight for the same idx budget;
+// individual indices within `[0, cut_idx]` open lazily in
+// `g_tls_page.lrc_l1_mask` when this thread requests them.
 inline L1KArray *l1_base() noexcept {
     L1KArray *l1 = tls_l1;
     if(__builtin_expect(l1 == nullptr, 0)) {
@@ -7537,39 +7616,71 @@ inline L1KArray *l1_base() noexcept {
         std::size_t cut_size = per_thread / k_eff;
         int cut_idx = (cut_size < LRC_LO) ? -1 : lrc_idx_natural(cut_size);
         if(cut_idx > LRC_N_MAX_L1) cut_idx = LRC_N_MAX_L1;
-        tls_l1_max_idx = cut_idx;
-        tls_l1_k_eff = k_eff;
         tls_l1_storage.k_eff = k_eff;
-        // (§ded-fast) The page's copy for the fast paths, in the thread's own
-        // page by name, where l1_drain() zeroes it.  Both callers have just
-        // seen the thread live (kame_thread_torn_down() false), so that is
-        // also the page kame_page() answers, and the fast paths read.
+        (void)kame_owner_id();
+        // (§ded-fast / §28) Store L1 pointer and encoded `cut_idx + 1` in the
+        // thread's own page by name, where `l1_drain()` zeroes them (preserving
+        // any non-L1 flag bits already set on the page).  The fast paths read
+        // k_eff off the L1 itself (L1Storage), not off the page.
         g_tls_page.lrc_l1 = l1;
-        g_tls_page.lrc_l1_idx_end = (uintptr_t)(cut_idx + 1);
+        g_tls_page.lrc_l1_mask =
+            (g_tls_page.lrc_l1_mask & LRC_L1_MMAP_DEMAND_BIT)
+            | ((uintptr_t)(unsigned)(cut_idx + 1) << LRC_L1_CUT_SHIFT);
         tls_l1_drain.touch();                                          // arm thread-exit drain
     }
     return l1;
 }
 
+KAME_NOINLINE char *l1_arm_and_open_cold(KameTlsPage *pg, int idx) noexcept {
+    // Post-~L1Drain destructor allocating above 32 KiB must not re-arm a second
+    // L1 that nothing drains or count the thread twice in `g_lrc_l1_threads`.
+    if(s_l1_drained) return nullptr;
+    (void)l1_base();
+    uintptr_t mask = pg->lrc_l1_mask;
+    unsigned cut_p1 = (unsigned)((mask >> LRC_L1_CUT_SHIFT) & 0x1Fu);
+    if((unsigned)idx < cut_p1)
+        pg->lrc_l1_mask = mask | ((uintptr_t)1u << (unsigned)idx);
+    else if(idx > LRC_CHUNK_BND)
+        pg->lrc_l1_mask = mask | LRC_L1_MMAP_DEMAND_BIT;
+    return nullptr;
+}
+
 // ---- L1 (per-thread, no atomics) ----
 // Pop a fitting block from this thread's L1 at (kstart…kstart+k_eff), or
-// nullptr.  Single owner ⇒ plain loads/stores, no CAS.
+// nullptr.  Single owner ⇒ plain loads/stores, no CAS, zero TLV calls on
+// armed threads.
 inline char *l1_pop_fit(std::size_t need, unsigned kind) noexcept {
-    // (teardown) Symmetric with l1_push: a torn-down thread must not re-arm its
-    // L1 here either — l1_base() would bump g_lrc_l1_threads again (live-thread
-    // counter drift → undersized L1 cuts for the threads that remain).  Fall to
-    // the global L2 / fresh claim instead.
-    // Nor may a DRAINED thread re-arm it, torn down or not: a thread_local
-    // destructor that runs after ~L1Drain and allocates above 32 KiB would arm
-    // a second L1 that nothing drains, and count the thread twice in
-    // g_lrc_l1_threads.  `kame_thread_torn_down()` first: on macOS
-    // `s_l1_drained` is a TLV access, unsafe once the thread is torn down.
-    if(__builtin_expect(kame_thread_torn_down() || s_l1_drained, 0)) return nullptr;
-    L1KArray *l1 = l1_base();
+    // Calling `kame_page()` first plants the fast-TSD slot on a thread's first
+    // large allocation (even when `idx > LRC_N_MAX_L1`, so `lrc_kstart_g()` and
+    // `recycle_pop_fit` see a live page) and rejects torn-down threads without
+    // touching TLV storage on macOS.
+    KameTlsPage *pg = kame_page();
+    if(__builtin_expect(pg->torn_down != 0u, 0)) return nullptr;
     int idx = lrc_idx(need, kind);
-    if(idx > tls_l1_max_idx) return nullptr;
-    int kstart = lrc_kstart_l1();
-    unsigned k_eff = tls_l1_k_eff;
+    uintptr_t mask = pg->lrc_l1_mask;
+    if((unsigned)idx > (unsigned)LRC_N_MAX_L1) {
+        if(__builtin_expect((mask & LRC_L1_MMAP_DEMAND_BIT) == 0u, 0))
+            pg->lrc_l1_mask = mask | LRC_L1_MMAP_DEMAND_BIT;
+        return nullptr;
+    }
+    const uintptr_t bit = (uintptr_t)1u << (unsigned)idx;
+    if(__builtin_expect((mask & bit) == 0u, 0)) {
+        unsigned cut_p1 = (unsigned)((mask >> LRC_L1_CUT_SHIFT) & 0x1Fu);
+        if(cut_p1 == 0u)
+            return l1_arm_and_open_cold(pg, idx);
+        if((unsigned)idx >= cut_p1) {
+            if(kind == (unsigned)LRC_MMAP && (mask & LRC_L1_MMAP_DEMAND_BIT) == 0u)
+                pg->lrc_l1_mask = mask | LRC_L1_MMAP_DEMAND_BIT;
+            return nullptr;                                            // over per-thread cut
+        }
+        // First request for `idx <= cut_idx` on an already-armed thread (or
+        // first since `kame_pool_trim`): open `idx` and skip scanning 32 empty slots.
+        pg->lrc_l1_mask = mask | bit;
+        return nullptr;
+    }
+    L1KArray *l1 = static_cast<L1KArray *>(pg->lrc_l1);
+    int kstart = (int)(pg->owner_id & (LRC_K_L1 - 1));
+    const unsigned k_eff = reinterpret_cast<const L1Storage *>(l1)->k_eff;
     unsigned kk = 0;
     do {
         int k = (kstart + (int)kk) & (LRC_K_L1 - 1);
@@ -7585,28 +7696,22 @@ inline char *l1_pop_fit(std::size_t need, unsigned kind) noexcept {
     return nullptr;
 }
 // Cache a block in this thread's L1 at the first empty (k, idx) starting
-// from kstart across the thread's effective k_eff slots.  Refused when
-// idx > cut (→ global) or all k_eff slots occupied (→ global).
+// from kstart across the thread's effective k_eff slots.  Refused when this
+// thread has never requested `idx` (→ global), when idx > LRC_N_MAX_L1 / cut
+// (→ global), when drained/torn-down (→ global), or when all k_eff slots are
+// occupied (→ global).  Pure consumers have `lrc_l1_mask == 0` (or null
+// fast-TSD slot) and return immediately without instantiating
+// `tls_l1_storage` or incrementing `g_lrc_l1_threads`.
 inline bool l1_push(char *base, std::size_t size, unsigned kind) noexcept {
-    // (teardown) Post-drain frees must not refill the L1 — see s_l1_drained.
-    // ALSO refuse once this thread is torn down: a thread that NEVER armed its
-    // L1 (consumes only sub-32 KiB, or is a pure non-allocating consumer) has
-    // `s_l1_drained == false` because l1_drain()'s thread_local dtor never ran
-    // (it is only armed by l1_base()).  A cross-thread-origin large/dedicated
-    // (>32 KiB) block freed in such a thread's pthread_key destructor would
-    // otherwise re-arm a fresh L1 here that nothing ever drains → +1 chunk/cycle
-    // permanent stranding (a narrow re-opening of the 30ea1daa leak class).
-    // kame_thread_torn_down() catches it for ALL threads, armed or not, and
-    // mirrors the bucket-tier sentinel guard; recycle_push then falls to
-    // global_push (L2, no allocator TLS) — safe at teardown.  Torn down is
-    // tested first: on macOS `s_l1_drained` is a TLV access, which the page
-    // flag keeps us from making once the thread's TLV storage may be gone.
-    if(__builtin_expect(kame_thread_torn_down() || s_l1_drained, 0)) return false;
-    L1KArray *l1 = l1_base();
+    KameTlsPage *pg = kame_page_or_null();
+    if(__builtin_expect(pg == nullptr || pg->torn_down != 0u, 0)) return false;
+    const uintptr_t mask = pg->lrc_l1_mask;
     int idx = lrc_idx(size, kind);
-    if(idx > tls_l1_max_idx) return false;
-    int kstart = lrc_kstart_l1();
-    unsigned k_eff = tls_l1_k_eff;
+    if((unsigned)idx > (unsigned)LRC_N_MAX_L1 || ((mask >> (unsigned)idx) & 1u) == 0u)
+        return false;
+    L1KArray *l1 = static_cast<L1KArray *>(pg->lrc_l1);
+    int kstart = (int)(pg->owner_id & (LRC_K_L1 - 1));
+    const unsigned k_eff = reinterpret_cast<const L1Storage *>(l1)->k_eff;
     unsigned kk = 0;
     do {
         int k = (kstart + (int)kk) & (LRC_K_L1 - 1);
@@ -7671,118 +7776,61 @@ inline char *recycle_pop_fit(std::size_t need, unsigned kind) noexcept {
     return global_pop_fit(need, kind);
 }
 
-// (§28.1) Amortised lazy drain of the global MMAP-tier cache.  Called once
-// per LRC_MMAP push (only; the chunk tier doesn't hold enough RSS per slot
-// to need this).  If at least LRC_LAZY_INTERVAL_NS has passed since this
-// thread's last tick, re-stamp the TLS clock and try ONE slot at the
-// per-thread cursor: strong-CAS-take it and release the block if occupied,
-// nothing if empty.  Cursor advances every tick whether or not a release
-// happens, so the entire MMAP-slot space is swept over time.
+// (§28.1) Amortised lazy drain of the global MMAP-tier cache.  Called on
+// MMAP-tier allocator threads (L2-spilling `recycle_push(LRC_MMAP)` on threads
+// that have allocated `LRC_MMAP`, plus cold L2 misses in `allocate_large_va`;
+// never on pure consumer/frame threads that only free cross-thread streamed
+// blocks nor inside `rt_defer_active()`).  If at least `g_lrc_lazy_interval_ns`
+// has passed since this thread's last tick, re-stamp the TLS clock and try ONE
+// slot at the per-thread cursor: strong-CAS-take it and release the block if
+// occupied, nothing if empty.  Cursor advances every tick whether or not a
+// release happens, so the entire MMAP-slot space is swept over time.
 //
-// Rationale: a long-running workload with frequent multi-MiB allocs would
-// otherwise pin large blocks in the cache until cap, even if they aren't
-// being reused.  Constant drain at ≈ 100 ticks/sec/thread → 100·N
-// releases/sec aggregate (where N = active threads) caps the steady-state
-// residency without explicit `kame_pool_set_large_cache_cap` calls.  Hot
-// push-pop pairs (same slot popped before the cursor reaches it) are
-// unaffected; an unlucky cursor collision steals one block per 10 ms ×
-// thread, which is millions of cycles between work — negligible.
-//
-// Cost on the LRC_MMAP push path:
-//   - 10 ms NOT elapsed: 1 steady_clock::now() (~30 ns) + 1 compare.
-//   - 10 ms elapsed: + 1 atomic load + maybe 1 CAS + munmap (~10 µs).
-// LRC_MMAP push is rare (multi-MiB free, ~1–1000/sec/thread); the per-push
-// cost is well under 1 % of normal work.
-//
-// Race safety: each tick attempts at most 1 strong CAS.  Concurrent push to
-// the same slot fails its CAS and tries the next k; concurrent pop sees
-// null after we take.  No retry loop, no chance of livelock.
-// (§28.1 / §28.3) Lazy drain interval — now runtime-tunable + auto-calibrated.
-//
-// Default 10 ms (= the original constexpr); auto-tune on the first
-// LRC_MMAP push measures the host's `munmap(32 MiB)` cost once and stores
-// `clamp(20 × munmap_ns, 1 ms .. 1 s)` so the per-thread worst-case
-// wallclock fraction spent inside lazy-tick munmaps stays ≤ 5 %.  Sites
-// with abnormally slow munmap (containers, VMs, etc.) thus self-throttle;
-// fast hosts (HPC nodes with cheap TLB shootdown) keep the responsive
-// 10 ms.  Override via `kame_pool_set_lazy_drain_interval_ms()` (user
-// takes over; auto-tune is locked out) or via env `KAME_POOL_AUTO_TUNE=0`
-// (skip the calibration entirely, keep the 10 ms default).
+// (§28.3) Lazy-drain interval — runtime-tunable + zero-allocation auto-tune:
+// Default 10 ms; on the first real lazy-drain `munmap` (`lrc_release`), we
+// time that actual unmap (normalised to a 32 MiB span) and store
+// `clamp(20 × munmap_32m_ns, 10 ms .. 1 s)` (raise-only, INV-19) so worst-case
+// per-thread wallclock spent inside lazy-tick munmaps stays ≤ 5 % without
+// allocating or faulting a synthetic 32 MiB probe buffer on first free.
+// Override via `kame_pool_set_lazy_drain_interval_ms()` or `KAME_POOL_AUTO_TUNE=0`.
 constexpr std::int64_t LRC_LAZY_INTERVAL_DEFAULT_NS = 10LL * 1000 * 1000;
-// Lazy-drain interval (ns) — plain int64 + volatile, NOT std::atomic.  ns
-// magnitude needs 64 bits but the value is read once per LRC_MMAP push
-// (millisecond-scale interval) and stored only at startup / set_realtime_mode
-// — extreme cold path on both sides.  An atomic<int64_t> would force a
-// CMPXCHG8B (i486: libatomic call) on every read; a torn read here is
-// benign — at worst one tick's lazy-drain interval is misread for one cycle.
-// Storing as 32-bit pieces in declaration order also keeps any natural
-// 32-bit-aligned load-tearing window contained to the low/high half.
+// Lazy-drain interval (ns) — plain int64 + volatile, NOT std::atomic (no-DCAS:
+// an atomic<int64_t> would force CMPXCHG8B / libatomic on 32-bit targets).
 volatile std::int64_t g_lrc_lazy_interval_ns = LRC_LAZY_INTERVAL_DEFAULT_NS;
 std::atomic<bool>         g_lazy_auto_tune_done{false};
 
 ALLOC_TLS_IE std::int64_t tls_lazy_last_ns = 0;                     // 0 = epoch ⇒ first tick fires
 ALLOC_TLS_IE int          tls_lazy_cursor  = 0;                     // position in the MMAP-slot sweep
 
-// (§28.3) One-shot measurement of `munmap(32 MiB after first-touch)` cost
-// on this host.  Uses raw mmap/munmap (NOT kamepoolalloc — recursion
-// safety).  Skipped when KAME_POOL_AUTO_TUNE=0.  Roughly:
-//   per-thread tick rate = 1 / interval
-//   per-tick blocked time = munmap_ns
-//   per-thread wallclock fraction = munmap_ns / interval
-// Target ≤ 5 % ⇒ interval ≥ 20 × munmap_ns.  RAISE-ONLY: if the host's
-// munmap is fast enough that the default 10 ms already satisfies the 5 %
-// target, KEEP the default — never lower it, since a single measurement
-// can underestimate the realistic munmap cost (cold-cache, under-load
-// values typically differ by 3–5× on the same host) and an over-eager
-// down-tune below default makes pressure WORSE.  Only clamp the upward
-// direction (1 s ceiling).
-static void lrc_auto_tune_lazy_interval() noexcept {
+static void lrc_record_auto_tune_sample(std::size_t sz, std::int64_t munmap_ns) noexcept {
 #if !(defined(__WIN32__) || defined(WINDOWS) || defined(_WIN32))
+    bool exp = false;
+    if( !g_lazy_auto_tune_done.compare_exchange_strong(
+             exp, true, std::memory_order_acq_rel))
+        return;
     if(kame_pool_env().auto_tune_off) return;   // KAME_POOL_AUTO_TUNE=0, read at load (KamePoolEnv)
+    if(munmap_ns <= 0 || sz == 0) return;
 
-    constexpr std::size_t SZ = (std::size_t)32 * 1024 * 1024;
-    void *p = mmap(nullptr, SZ, PROT_READ | PROT_WRITE,
-                   MAP_ANON | MAP_PRIVATE, -1, 0);
-    if(p == MAP_FAILED) return;
-    // ALLOC_PAGE_SIZE: 16 KiB on Apple arm64, 64 KiB on PPC64, 4 KiB else
-    // (allocator_prv.h §172–§177).  Compile-time constant — no <unistd.h>
-    // dependency, so the auto-tune compiles cleanly on the macOS path
-    // where `_SC_PAGESIZE` isn't directly visible from this TU.
-    for(std::size_t off = 0; off < SZ; off += (std::size_t)ALLOC_PAGE_SIZE)
-        ((volatile char *)p)[off] = 1;
-    auto t0 = std::chrono::steady_clock::now();
-    munmap(p, SZ);
-    std::int64_t munmap_ns =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::steady_clock::now() - t0).count();
-    if(munmap_ns <= 0) return;
-
-    std::int64_t interval = 20 * munmap_ns;
-    if(interval <= LRC_LAZY_INTERVAL_DEFAULT_NS) return;            // default is already fine — keep it
+    constexpr std::size_t REF_SZ = (std::size_t)32 * 1024 * 1024;
+    std::int64_t scaled_ns = (sz < REF_SZ)
+        ? (munmap_ns * (std::int64_t)((REF_SZ + sz - 1u) / sz))
+        : munmap_ns;
+    std::int64_t interval = 20 * scaled_ns;
+    if(interval <= LRC_LAZY_INTERVAL_DEFAULT_NS) return;            // INV-19: raise-only
     if(interval > 1000000000LL) interval = 1000000000LL;            // 1 s ceiling
     g_lrc_lazy_interval_ns = interval;
+#else
+    (void)sz;
+    (void)munmap_ns;
 #endif
 }
 
-inline void lrc_lazy_mmap_one() noexcept {
-    // (§28.3) First call on this process: auto-tune the interval from the
-    // measured munmap cost.  CAS the gate so exactly one thread does the
-    // measurement; others fall through using whatever value is current
-    // (default, then the tuned value after this completes).
-    if( !g_lazy_auto_tune_done.load(std::memory_order_acquire)) {
-        bool exp = false;
-        if(g_lazy_auto_tune_done.compare_exchange_strong(
-               exp, true, std::memory_order_acq_rel))
-            lrc_auto_tune_lazy_interval();
-    }
-
-    auto now = std::chrono::steady_clock::now();
-    std::int64_t now_ns =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            now.time_since_epoch()).count();
-    if(now_ns - tls_lazy_last_ns
-       < g_lrc_lazy_interval_ns) return;
+KAME_NOINLINE void lrc_lazy_mmap_sweep_cold(std::int64_t now_ns) noexcept {
     tls_lazy_last_ns = now_ns;
+    // Check RT deferral here (at most once per 10 ms interval) so non-RT L2
+    // loops never pay a TLV thunk (`g_rt_thread`) between ticks, while RT
+    // threads advance `tls_lazy_last_ns` and return without unmapping.
+    if(__builtin_expect(rt_defer_active(), 0)) return;
 
     // MMAP-tier slots are at idx (LRC_CHUNK_BND, LRC_N_MAX] across all K.
     constexpr int LRC_MMAP_IDX_COUNT = LRC_N_MAX - LRC_CHUNK_BND;
@@ -7805,13 +7853,35 @@ inline void lrc_lazy_mmap_one() noexcept {
         return;                                                    // racing pop/push took it
     std::size_t sz = lrc_block_size(b, (unsigned)LRC_MMAP);
     g_lrc_bytes.fetch_sub(sz, std::memory_order_relaxed);
-    lrc_release(b, sz, (unsigned)LRC_MMAP);
+    if( !g_lazy_auto_tune_done.load(std::memory_order_acquire)) {
+        auto t0 = std::chrono::steady_clock::now();
+        lrc_release(b, sz, (unsigned)LRC_MMAP);
+        std::int64_t dt = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - t0).count();
+        lrc_record_auto_tune_sample(sz, dt);
+    } else {
+        lrc_release(b, sz, (unsigned)LRC_MMAP);
+    }
+}
+
+KAME_ALWAYS_INLINE void lrc_lazy_mmap_one() noexcept {
+    auto now = std::chrono::steady_clock::now();
+    std::int64_t now_ns =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            now.time_since_epoch()).count();
+    if(__builtin_expect(now_ns - tls_lazy_last_ns >= g_lrc_lazy_interval_ns, 0))
+        lrc_lazy_mmap_sweep_cold(now_ns);
 }
 
 inline bool recycle_push(char *base, std::size_t size, unsigned kind) noexcept {
     if(l1_push(base, size, kind)) return true;
     bool ok = global_push(base, size, kind);
-    if(kind == (unsigned)LRC_MMAP) lrc_lazy_mmap_one();              // §28.1 amortised drain
+    if(kind == (unsigned)LRC_MMAP) {
+        KameTlsPage *pg = kame_page_or_null();
+        if(__builtin_expect(pg != nullptr && pg->torn_down == 0u, 1)
+           && (pg->lrc_l1_mask & (LRC_L1_MMAP_ANY_MASK | LRC_L1_MMAP_DEMAND_BIT)) != 0u)
+            lrc_lazy_mmap_one();                      // §28.1 amortised drain on MMAP allocators
+    }
     return ok;
 }
 
@@ -7829,7 +7899,7 @@ void l1_drain() noexcept {
     // cleared), so the disarm cannot depend on the order of thread exit.
     // The page lives in the same thread storage as `tls_l1`, read above.
     g_tls_page.lrc_l1 = nullptr;
-    g_tls_page.lrc_l1_idx_end = 0;
+    g_tls_page.lrc_l1_mask = 0;
     for(int k = 0; k < LRC_K_L1; k++) {
         for(int idx = 0; idx <= LRC_N_MAX_L1; idx++) {
             char *b = l1[k].slots[idx];
@@ -7880,10 +7950,12 @@ bool large_recycle_push(char *base, std::size_t size, unsigned kind) noexcept {
 // vectorised L2 loop inlined into it.
 //
 // These paths read the L1 off the page the caller already holds
-// (KameTlsPage::lrc_l1 / lrc_l1_idx_end) and touch nothing else: an L1
-// that is unarmed or drained reads idx_end 0, a torn-down thread is turned
-// away first, and anything they cannot do -- an empty or full L1, a block
-// of bucket origin -- goes to the general path, which is unchanged.  They
+// (KameTlsPage::lrc_l1 / lrc_l1_mask) and touch nothing else: an L1 index
+// that is unarmed, drained, over the budget cut, or never requested on this
+// thread has its bit clear in `lrc_l1_mask`, a torn-down thread is turned
+// away first, and anything they cannot do -- an empty L1 on pop, a block of
+// bucket origin -- goes to the general path, while unrequested / overflow
+// dedicated frees go straight to `deallocate_dedicated_l2` (global L2).  They
 // keep the L1's layout and semantics exactly (chunk_base stored, same
 // index, same order of slots from the thread's start), so l1_pop_fit,
 // l1_push, l1_drain and kame_pool_trim see the same cache.
@@ -7947,7 +8019,7 @@ KAME_ALWAYS_INLINE char *dedicated_l1_pop(std::size_t size) noexcept {
     const unsigned idx = kLrcChunkIdx.of_units[units];
     assert(units >= 1u && units <= (unsigned)ALLOC_MAX_CHUNK_UNITS);
     assert((int)idx == lrc_idx((std::size_t)units << ALLOC_MIN_CHUNK_SHIFT, LRC_CHUNK));
-    if(idx >= pg->lrc_l1_idx_end)                       // unarmed / drained / over the cut
+    if(((pg->lrc_l1_mask >> idx) & 1u) == 0u)           // unarmed / drained / over cut / unrequested
         return nullptr;
     L1KArray *l1 = static_cast<L1KArray *>(pg->lrc_l1);
     const std::size_t need = (std::size_t)units << ALLOC_MIN_CHUNK_SHIFT;
@@ -7997,10 +8069,10 @@ KAME_NOINLINE void deallocate_dedicated_l2(char *chunk_base, std::size_t bytes) 
 
 // From the lean `deallocate`, for a pool pointer whose back_off byte has bit
 // 7 set.  `pg` is the caller's (non-null) page.  The chunk goes to the
-// first free slot of its index as l1_push would put it, or past a full row
-// to the L2; anything else -- torn down, L1 unarmed or drained or over the
-// cut, a DEDICATED_SIZE out of range -- to deallocate_cold, whose bit-7
-// branch does what it did.
+// first free slot of its index as l1_push would put it when `idx` was
+// requested on this thread, or directly to the global L2 when the row is full
+// or `idx` was never requested on this thread; anything else -- torn down or
+// a DEDICATED_SIZE out of range -- falls to deallocate_cold.
 // chunk_base is derived here, as `deallocate` derives it, not passed in (see
 // the call site).
 KAME_NOINLINE KAME_HOT_ALIGN void deallocate_dedicated(void *p, KameTlsPage *pg) noexcept {
@@ -8018,7 +8090,7 @@ KAME_NOINLINE KAME_HOT_ALIGN void deallocate_dedicated(void *p, KameTlsPage *pg)
         const std::uint64_t units = bytes >> ALLOC_MIN_CHUNK_SHIFT;
         if(units - 1u < (std::uint64_t)ALLOC_MAX_CHUNK_UNITS) {
             const unsigned idx = kLrcChunkIdx.of_units[units];
-            if(idx < pg->lrc_l1_idx_end) {
+            if((pg->lrc_l1_mask >> idx) & 1u) {
                 L1KArray *l1 = static_cast<L1KArray *>(pg->lrc_l1);
                 const unsigned kstart = pg->owner_id;
                 const unsigned k_eff = reinterpret_cast<const L1Storage *>(l1)->k_eff;
@@ -8031,8 +8103,8 @@ KAME_NOINLINE KAME_HOT_ALIGN void deallocate_dedicated(void *p, KameTlsPage *pg)
                         return;
                     }
                 } while(++kk < k_eff);
-                return deallocate_dedicated_l2(chunk_base, (std::size_t)bytes);   // row full
             }
+            return deallocate_dedicated_l2(chunk_base, (std::size_t)bytes);
         }
     }
     return PoolAllocatorBase::deallocate_cold(p);
@@ -8125,13 +8197,13 @@ extern "C" std::size_t kame_pool_get_large_cache_cap(void) noexcept {
 	return (std::size_t)((h < 0 ? 0 : h) * 2);
 }
 
-// (§28.3) Lazy-drain interval runtime API.  Default is 10 ms; on first
-// LRC_MMAP push the library calibrates it from a single `munmap(32 MiB)`
-// measurement.  Calling `set` here locks out the auto-tune (user wins)
-// and stores the supplied value verbatim.  `ms == 0` is silently rejected
-// (avoids divide-by-zero / hot ticking).  `get` returns the currently
-// effective value, which may be the default, the auto-tuned, or the
-// user-set value.
+// (§28.3) Lazy-drain interval runtime API.  Default is 10 ms; on the first
+// real lazy-drain unmap the library calibrates it from that `munmap` duration
+// normalised to a 32 MiB span.  Calling `set` here locks out the auto-tune
+// (user wins) and stores the supplied value verbatim.  `ms == 0` is silently
+// rejected (avoids divide-by-zero / hot ticking).  `get` returns the currently
+// effective value, which may be the default, the auto-tuned, or the user-set
+// value.
 extern "C" void kame_pool_set_lazy_drain_interval_ms(unsigned int ms) noexcept {
 	if(ms == 0) return;
 	std::int64_t ns = (std::int64_t)ms * 1000000LL;
@@ -8146,15 +8218,15 @@ extern "C" unsigned int kame_pool_get_lazy_drain_interval_ms(void) noexcept {
 
 // (§30) Realtime-mode preset — silences the three background maintenance
 // paths that can inject munmap / madvise latency into a measurement loop:
-//   1. §28.1 lazy drain (per-LRC_MMAP-push tick that munmaps one cached
-//      mmap-tier block — the only path that mmaps/munmaps OUTSIDE of an
-//      explicit alloc/free call).  Set the interval to ~146 years so the
-//      `now_ns - tls_lazy_last_ns < interval` guard is always true.
-//   2. §28.3 auto-tune startup probe.  `g_lazy_auto_tune_done = true`
-//      makes the first LRC_MMAP push skip the one-shot `munmap(32 MiB)`
-//      measurement — the user has explicitly opted out of background
-//      tuning, so we trust them.  (`set_lazy_drain_interval_ms` already
-//      sets this flag for the same reason; we mirror it here for the
+//   1. §28.1 lazy drain (periodic tick on MMAP-tier allocator threads that
+//      munmaps one cached mmap-tier block — the only path that mmaps/munmaps
+//      OUTSIDE of an explicit alloc/free call).  Set the interval to ~146
+//      years so the `now_ns - tls_lazy_last_ns < interval` guard is always
+//      true.
+//   2. §28.3 auto-tune calibration.  `g_lazy_auto_tune_done = true` locks out
+//      the first-unmap auto-tune sample — the user has explicitly opted out of
+//      background tuning, so we trust them.  (`set_lazy_drain_interval_ms`
+//      already sets this flag for the same reason; we mirror it here for the
 //      case where the user calls realtime_mode WITHOUT also pinning the
 //      interval — keeping all three lazy/auto knobs in one place.)
 //   3. §21 thread-exit reclaim — the `madvise(MADV_DONTNEED)` issued by
@@ -8177,7 +8249,7 @@ extern "C" void kame_pool_set_realtime_mode(int enable) noexcept {
 		g_lrc_lazy_interval_ns =
 		    std::numeric_limits<std::int64_t>::max() / 2;
 		// (2) Auto-tune locked out (would otherwise overwrite the
-		// interval on the first LRC_MMAP push).
+		// interval on the first lazy-drain unmap).
 		g_lazy_auto_tune_done.store(true, std::memory_order_release);
 		// (3) Thread-exit madvise off.
 		PoolAllocatorBase::s_thread_exit_reclaim.store(
@@ -8359,10 +8431,14 @@ extern "C" void kame_pool_trim(void) noexcept {
 
 	rt_settle_pending();
 
-	// This thread's L1 recycle cache.  Emptied but left ARMED (unlike
-	// `l1_drain`, which is the thread-exit path and also clears `tls_l1` /
-	// sets `s_l1_drained`) -- the thread keeps allocating afterwards.
+	// This thread's L1 recycle cache.  Emptied and demand-mask reset, but left
+	// ARMED (`LRC_L1_CUT_MASK` preserved, unlike `l1_drain`, which is the
+	// thread-exit path and also clears `tls_l1` / sets `s_l1_drained`) -- the
+	// thread keeps allocating afterwards and re-opens only the size bands its
+	// new phase actually requests.
 	if(L1KArray *l1 = tls_l1) {
+		if( !kame_thread_torn_down())
+			g_tls_page.lrc_l1_mask &= LRC_L1_CUT_MASK;
 		for(int k = 0; k < LRC_K_L1; k++) {
 			for(int idx = 0; idx <= LRC_N_MAX_L1; idx++) {
 				char *b = l1[k].slots[idx];
@@ -8372,6 +8448,8 @@ extern "C" void kame_pool_trim(void) noexcept {
 				lrc_release(b, lrc_block_size(b, kind), kind);
 			}
 		}
+	} else if( !kame_thread_torn_down()) {
+		g_tls_page.lrc_l1_mask = 0;
 	}
 
 	// The global L2 cache.  CAS-steal each slot so a concurrent popper
@@ -8405,6 +8483,8 @@ extern "C" void kame_pool_trim(void) noexcept {
 extern "C" int kame_pool_prewarm(const size_t *sizes, const unsigned *counts,
                                 unsigned n) noexcept {
 	if( !sizes || !counts) return -1;
+	const bool saved_pw = s_tls_in_prewarm;
+	s_tls_in_prewarm = true;
 	enum { BATCH = 128 };
 	void *buf[BATCH];
 	int rc = 0;
@@ -8412,6 +8492,30 @@ extern "C" int kame_pool_prewarm(const size_t *sizes, const unsigned *counts,
 		const size_t sz = sizes[i];
 		if(sz == 0) continue;
 		unsigned remaining = counts[i];
+#ifndef GUARDIAN
+		if(sz >= sizeof(void *)) {
+			void *head = nullptr;
+			unsigned got = 0;
+			for(; got < remaining; got++) {
+				void *p = kame_pool_malloc(sz);
+				if( !p) break;
+				volatile char *q = static_cast<volatile char *>(p);
+				for(size_t off = 0; off < sz; off += ALLOC_PAGE_SIZE)
+					q[off] = 0;
+				q[sz - 1] = 0;            // last partial page
+				*static_cast<void **>(p) = head;
+				head = p;
+			}
+			while(head) {
+				void *nxt = *static_cast<void **>(head);
+				*static_cast<void *volatile *>(head) = nullptr;
+				kame_pool_free(head);
+				head = nxt;
+			}
+			if(got < remaining) rc = -1;
+			continue;
+		}
+#endif
 		while(remaining) {
 			unsigned want = remaining < (unsigned)BATCH
 			                ? remaining : (unsigned)BATCH;
@@ -8431,6 +8535,7 @@ extern "C" int kame_pool_prewarm(const size_t *sizes, const unsigned *counts,
 			remaining -= want;
 		}
 	}
+	s_tls_in_prewarm = saved_pw;
 	return rc;
 }
 
@@ -8497,6 +8602,7 @@ PoolAllocatorBase::allocate_large_va(std::size_t size, bool *zeroed) noexcept {
 	char *base = cacheable ? recycle_pop_fit(mmap_size, LRC_MMAP) : nullptr;
 	bool recycled = (base != nullptr);
 	if( !recycled) {
+		if(cacheable) lrc_lazy_mmap_one();
 		base = large_va_raw_map(mmap_size);
 		if( !base) return nullptr;
 	}

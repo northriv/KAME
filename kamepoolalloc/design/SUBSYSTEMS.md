@@ -57,12 +57,12 @@ Recovered from `git log kamepoolalloc/allocator.cpp` and the in-code tags.
 | §25 / §25.1 | Global lock-free log-slot cache (replaces the §23 per-thread LIFO). |
 | §26 / §26.1 | Per-thread L1 in front of the global L2; index-cut per-thread bound. |
 | §27 | Serve > 32 MiB from the pool (multi-region mmap + cache bypass for the huge class). |
-| §28 | K-line cache (K-major, 1:1 size rounding); slot page-bounding; two-phase cap-evict. |
-| §28.1 | Amortised lazy drain of the MMAP-tier cache (per-thread 10 ms tick). |
+| §28 | K-line cache (K-major, 1:1 size rounding); slot page-bounding; two-phase cap-evict; per-band demand-gated L1. |
+| §28.1 | Amortised lazy drain of the MMAP-tier cache (per-thread 10 ms tick on MMAP allocator threads). |
 | §28.2 | `kame_pool_get_stats` v2 tier-attribution fields. |
-| §28.3 | Auto-tune the lazy interval from a startup munmap probe (raise-only). |
+| §28.3 | Auto-tune the lazy interval from the first real lazy-drain unmap (raise-only; zero startup probe). |
 | §28.4 | Shard the §28.2 counters (fix the MT cache-line-bounce regression). |
-| §29 | FS=true freelist pre-fill at chunk claim (cold-path bitmap scan → O(1) pop; auto-prewarm). Runtime opt-out: `KAME_POOL_DISABLE_PREFILL=1`. |
+| §29 | FS=true lazy watermark freelist pre-fill (1 OS page at chunk claim, ~16 KiB steps on demand; full chunk inside `kame_pool_prewarm`). Runtime opt-out: `KAME_POOL_DISABLE_PREFILL=1`. |
 | §30 | `kame_pool_set_realtime_mode()` — one-call silence of lazy drain + auto-tune + thread-exit reclaim. |
 | §31 | Windows free-family IAT redirect — pool/CRT coexistence on PE/COFF (the analogue of the ELF/Mach-O `free` interpose). `#if _WIN32` only. |
 
