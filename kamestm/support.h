@@ -106,4 +106,28 @@ using std::weak_ptr;
 using std::static_pointer_cast;
 using std::dynamic_pointer_cast;
 
+// XKameError -- `transaction_signal.h` catches it around a listener's call
+// (and prints it), a non-dependent name inside templates, so every consumer
+// that includes `transaction.h` needs it declared, whether or not it ever
+// throws one.  `kame/support.h` has the full class and the test harness
+// (`tests/support_standalone.h`) its own; this shim had none, so a downstream
+// consumer of libkamestm alone could not compile `transaction.h` at all
+// ("unknown type name 'XKameError'", 2026-11-17).  A header-only minimum: the
+// message, where it was made, and print() to stderr.
+#include <cstdio>
+#include <stdexcept>
+struct XKameError : public std::runtime_error {
+    XKameError(const XString &s, const char *file, int line)
+        : std::runtime_error(s), m_msg(s), m_file(file), m_line(line) {}
+    virtual ~XKameError() noexcept {}
+    void print() const {
+        std::fprintf(stderr, "%s (%s:%d)\n", m_msg.c_str(), m_file ? m_file : "?", m_line);
+    }
+    const XString &msg() const {return m_msg;}
+private:
+    XString m_msg;
+    const char *m_file;
+    int m_line;
+};
+
 #endif /* supportH */
