@@ -154,7 +154,11 @@ Alpine/musl** (the mimalloc-bench CI matrix).  Requires a host with `mmap`
 **Releases** are the standalone repository's tags; v1.4.0 is the current
 one.  v1.3.1 added §ded-fast (the dedicated tier off the thread's page);
 v1.4.0 adds §mt-scale (1 MiB at any thread count, the ~1 KiB cross-thread
-handoff) and `kame_pool_trim()`'s flush of the cross-thread batch.  Where
+handoff), §rss (an L1 band opens only on its thread's own demand; FS=true
+chunks pre-filled a page at a time), `kame_pool_trim()`'s flush of the
+cross-thread batch, and every `KAME_POOL_*` knob read once at load — a
+`getenv` from inside an allocation killed processes that call `setenv`
+(CPython at start-up) under `DYLD_INSERT_LIBRARIES` on macOS.  Where
 the text below compares against "v1.2.1", that is the
 allocator of KAME master `45f1d07f9`, which was never tagged: its changes
 (v1.2.0's single-thread regressions fixed, `kame_pool_trim()`, the macOS
@@ -372,6 +376,39 @@ the next thread's.  The instruction counts move little: a 1 MiB pair is 2
 longer (gcc; 4 clang, the `k_eff` load), a cross-thread free of 128 B /
 1 KiB 32–48 longer (the batch), for fewer cross-core CASes.  KAME's
 ChangeLog (2026-11-15) has the details and the correctness runs.
+
+### §rss — demand-gated L1 bands, page-at-a-time pre-fill
+
+A thread's L1 recycle cache used to open every size band below its cut the
+first time the thread allocated 32 KiB or more.  A thread that only frees
+large blocks another thread allocates — the consumer of an asset streamer —
+then kept up to `k_eff` blocks of every streamed band while the producer
+mapped fresh ones.  A band now opens when its own thread allocates in it
+(a bit in `KameTlsPage::lrc_l1_mask`); a free in any other band goes to the
+global L2, where the producer reuses it.  The lazy-drain interval is
+calibrated from the first real lazy `munmap`, not a synthetic 32 MiB
+map-touch-unmap at the first free, and foreground and realtime frees no
+longer pay the drain tick.
+
+An FS=true chunk was pre-filled whole at claim (up to 16 128 slots,
+256..512 KiB); it is now filled one OS page at first and about 16 KiB per
+miss after that, so a thread touching many classes sparsely faults one page
+per class rather than a chunk.  `kame_pool_prewarm()` now holds the
+requested count live at once (it recycled 128).
+
+Measured on the branch against `2308984dc` (M5 Max, interleaved; not
+re-measured after the merge onto §mt-scale):
+
+| | before → after |
+|---|---|
+| 32 threads touching the 17 FS=true classes sparsely, RSS | 181 → 21 MiB |
+| `bench_frame` peak RSS, 4 / 8 threads | 927 → 737 / 1160 → 945 MiB |
+| `bench_frame --rt`, 4 threads: p99.9 / max latency | 485 → 432 / 1148 → 482 µs |
+| `large_va` 8 MiB alloc+free, 18 threads | 1.50× |
+| `rptest` 2 / 4 / 6 threads | 1.07× / 1.16× / 1.13× |
+| `bench_loop` 64 B … 16 KiB, ring 64 B, `larson` | 0.98–1.03× |
+
+KAME's ChangeLog (2026-11-17) has the details.
 
 ### Third-party suite cross-check (mimalloc-bench, M5 Ultra)
 
@@ -865,6 +902,8 @@ the matching `-fsanitize=` flags.  Two things to know on macOS:
 - Env knobs (Windows live pool): `KAME_POOL_WIN_REDIRECT=0` disables the §31
   free redirect (restores the historical unreconciled behaviour);
   `KAME_POOL_VERBOSE=1` prints the patched-slot count at activation.
+  Every `KAME_POOL_*` knob, on every platform, is read once when the pool
+  loads; changing the environment afterwards has no effect.
 
 ## Usage
 
@@ -967,7 +1006,7 @@ See the header for full per-function semantics.
 
 | Symbol | Default | Purpose |
 |---|---|---|
-| `void   kame_pool_set_lazy_drain_interval_ms(unsigned)` | 10 ms (auto-tuned at startup) | §28.1 lazy drain interval — bigger = fewer munmap ticks |
+| `void   kame_pool_set_lazy_drain_interval_ms(unsigned)` | 10 ms (auto-tuned from the first lazy `munmap`; raise-only) | §28.1 lazy drain interval — bigger = fewer munmap ticks |
 | `unsigned kame_pool_get_lazy_drain_interval_ms(void)` | — | current interval |
 | `void   kame_pool_set_thread_exit_reclaim(int)` | on | §21 madvise(MADV_DONTNEED) at worker exit |
 | `void   kame_pool_set_realtime_mode(int)` | off | §30 one-shot preset: silences all three of the above |
@@ -1297,6 +1336,8 @@ many distinct per-thread sizes.  (§mt-scale) The depth a thread uses is
 `k_eff = clamp(g_lrc_cap / threads / 4 MiB, 1, LRC_K_L1)`, fixed when its
 L1 is armed; only once `k_eff` is 1 does the class ceiling drop, so the
 chunk tier (≤ 4 MiB) stays in L1 at any thread count the cap allows.
+(§rss) Within that ceiling a size band opens only once the thread itself
+allocates in it; frees in unopened bands go to the global L2.
 
 ### `LRC_LAZY_INTERVAL_NS` — §28.1 amortised drain interval
 
@@ -1406,6 +1447,8 @@ edits) and the §-chapter → subsystem → code navigation map
       v1.3.1)
 - [x] Many-thread scaling of the chunk tier — the L1 trades depth for
       classes — and a batched ~1 KiB cross-thread handoff (§mt-scale, v1.4.0)
+- [x] RSS without throughput loss — L1 bands opened on demand, FS=true
+      chunks pre-filled a page at a time (§rss, v1.4.0)
 
 ### Future / nice-to-have
 
@@ -1449,6 +1492,7 @@ four-tier general allocator.  Selected milestones (full history in `git log`):
 | page-bucket | the owner free reads the slot's bucket one load off `p` — `RegionMeta::unit_bucket` (FS=true), a per-region page table (full tier) — recovering what the thread lists cost x86 at 64 B and Windows at 16 KiB |
 | ded-fast | the dedicated tier (32 KiB – 4 MiB) pops and pushes the thread's L1 off `KameTlsPage`, and hands a recycled dedicated chunk back without re-stamping it — 292 → 135 instructions per 64 KiB pair, 2.2–2.6× on x86 |
 | mt-scale | the per-thread L1 scales its depth `k_eff` before dropping size classes, so 1 MiB stays in L1 at 32–128 threads (7.5–32×); FS=false ALIGN ≤ 64 claims a whole bitmap word per miss and batches cross-thread frees (`CAP_VAR` 256) — 1 KiB SPSC handoff 1.9–2.0× |
+| rss | an L1 size band opens only on its own thread's demand (a streamer's consumer no longer hoards its frees); FS=true chunks pre-filled one page, then ~16 KiB per miss — 32 sparse threads 181 → 21 MiB, `bench_frame` peak RSS −19 % |
 
 ## Acknowledgements
 

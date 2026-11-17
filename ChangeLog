@@ -1,3 +1,40 @@
+* Tue Nov 17 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamepoolalloc v1.4.0 also carries the three changes below.
+- kamepoolalloc: every KAME_POOL_* environment knob is read once at load,
+  none by getenv from an allocation.  On macOS getenv takes libc's
+  environment lock, and setenv holds it while its own malloc runs: under
+  DYLD_INSERT_LIBRARIES that malloc came to the pool, the first chunk of
+  its size class read KAME_POOL_DISABLE_PREFILL by getenv, and libplatform
+  killed the process ("Trying to recursively lock an os_unfair_lock") --
+  CPython's start-up setenv did it on every run.  Each activator reads the
+  environment too, since on Windows the priority constructor record may be
+  dropped.  New test: alloc_setenv_test (POSIX only).
+- kamepoolalloc: a thread's L1 recycle cache opens a size band only when
+  that thread allocates in it.  Armed by any allocation >= 32 KiB, it used
+  to open every band below the cut, so a thread that only frees large
+  blocks another thread allocates (an asset streamer's consumer) kept up to
+  k_eff of each in its L1 while the producer mapped fresh ones.  A free in
+  a band the thread never requested goes to the global L2, where the
+  producer reuses it.  The lazy-drain interval is now calibrated from the
+  first real lazy munmap instead of a synthetic 32 MiB map / touch / unmap
+  at the first free (~665 us on M5 Max); foreground and realtime frees no
+  longer pay the lazy unmap tick.  New scenario: alloc_dedicated_fast_test's
+  demand.
+- kamepoolalloc: an FS=true chunk (the fixed-size tiers) is pre-filled one
+  OS page at a time instead of whole (up to 16 128 slots, 256..512 KiB),
+  advancing about 16 KiB per miss once the filled part runs out; a thread
+  that touches many size classes sparsely no longer faults a whole chunk
+  per class.  kame_pool_prewarm() now holds counts[i] blocks live at once,
+  as documented; it recycled the same 128.  New test: alloc_watermark_test.
+- Measured on the branch against 2308984dc (M5 Max, interleaved): 32
+  threads touching the 17 FS=true classes sparsely, RSS 181 -> 21 MiB;
+  bench_frame peak RSS 4 / 8 threads 927 -> 737, 1160 -> 945 MiB;
+  bench_frame --rt 4 threads max latency 1148 -> 482 us; large_va 8 MiB at
+  18 threads 1.50x; rptest 1.07-1.16x; bench_loop, ring and larson level.
+  Merged onto §mt-scale (k_eff read off the L1, admission by the demand
+  bits): macOS ctest 54/54.  Not re-measured after the merge; Linux and
+  Windows not run.
+
 * Sun Nov 15 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - kamepoolalloc v1.4.0: the two changes below, with kame_pool_trim()'s
   flush of the cross-thread batch and the atomic_smart_ptr fixes (Oct 23).
