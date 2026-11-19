@@ -1,3 +1,20 @@
+* Thu Nov 19 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- atomic_smart_ptr: a local_shared_ptr or local_weak_ptr move-assigned to
+  itself keeps its pointer, as std::shared_ptr and std::weak_ptr do
+  ([util.smartptr.shared.assign], [util.smartptr.weak.assign]: as
+  `T(std::move(r)).swap(*this)`).  The same-type move assignment was
+  `t.swap(*this); t.reset();`, which left a self-move null: a vector
+  compacted in place (`v[keep++] = std::move(v[q])` with keep == q) dropped
+  its element, and moe-dreams' lander read through the null pointer and
+  crashed.  New test: atomic_shared_ptr_test's test_self_move.
+- Measured (Ryzen 7 5700X, Linux, -O3, before and after interleaved):
+  transaction_latency_bench -t 4 -s 5 leaf 17.40-17.45 -> 17.71-17.98,
+  grand 2.24 -> 2.19-2.24, mixed 3.48-3.57 -> 3.57-3.65 Mcommit/s;
+  transaction_lookup_bench within its run-to-run spread; a move between two
+  pointers 0.43-0.46 ns either way, a vector compacted 0.77-0.84 -> 0.89-1.00
+  ns a move.  A branch on self (`if(this != &t)`) instead made the move
+  between two 0.76 ns, and was not taken.
+
 * Tue Nov 17 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - kamepoolalloc v1.4.0 also carries the three changes below.
 - kamepoolalloc: every KAME_POOL_* environment knob is read once at load,
