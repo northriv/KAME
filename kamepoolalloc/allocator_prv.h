@@ -216,6 +216,11 @@ inline void atomicInc(T *target) noexcept {
     else _InterlockedIncrement((long volatile *)target);
 }
 template <typename T>
+inline void atomicAdd(T *target, T delta) noexcept {
+    if constexpr (sizeof(T) == 8) _InterlockedExchangeAdd64((long long volatile *)target, (long long)delta);
+    else _InterlockedExchangeAdd((long volatile *)target, (long)delta);
+}
+template <typename T>
 inline void atomicDec(T *target) noexcept {
     if constexpr (sizeof(T) == 8) _InterlockedDecrement64((long long volatile *)target);
     else _InterlockedDecrement((long volatile *)target);
@@ -261,6 +266,10 @@ atomicCompareAndSet(T oldv, T newv, T *target) noexcept {
 template <typename T>
 inline void atomicInc(T *target) noexcept {
     __sync_fetch_and_add(target, 1);
+}
+template <typename T>
+inline void atomicAdd(T *target, T delta) noexcept {
+    __sync_fetch_and_add(target, delta);
 }
 template <typename T>
 inline void atomicDec(T *target) noexcept {
@@ -734,7 +743,7 @@ static_assert(sizeof(RadixL2Node) == RADIX_L2_SIZE * 4u,
 //!          │   m_base_bucket, m_sizes,                  │
 //!          │   m_freelist_head[KAME_LOCAL_BUCKETS]      │
 //!    +216  │ m_chunk_size; m_flags (-> the bitmap      │
-//!          │   below), m_idx, m_count                   │
+//!          │   below), m_idx, m_count, m_prefill_word   │
 //!    +256  ├────────────────────────────────────────────┤
 //!          │ alignas(64) m_flags_packed (MASK_CNT,      │  <- cross-thread
 //!          │   BIT_A / BIT_Q / BIT_OWNED),              │     free, revival,
@@ -1938,6 +1947,7 @@ public:
 protected:
 	PoolAllocator(int count, char *addr);
 	inline void *allocate_pooled(unsigned int SIZE);
+	void *expand_prefill_watermark() noexcept;
 	bool deallocate_pooled(char *p) override;
 	int batch_return_to_bitmap(const CrossDeallocEntry *entries) noexcept override;
 	//! (§revive) The body: `revive` = take BIT_Q before clearing and push the
@@ -1989,6 +1999,14 @@ protected:
 	//! A hint for searching in a chunk.
 	int m_idx;
 	const int m_count;
+	//! (§29 watermark) First un-prefilled bitmap word in `[0, m_count]`.
+	//! Owner-only: words `[0, m_prefill_word)` have been pre-filled or
+	//! watermark-expanded; words `[m_prefill_word, m_count)` remain virgin
+	//! (`m_flags == 0`, slot pages unfaulted).  Equals `m_count` once fully
+	//! expanded or when §29 pre-fill is inactive (`FS=false`, `GUARDIAN`, or
+	//! `KAME_POOL_DISABLE_PREFILL=1`).  Fits inside the 16-byte alignment pad
+	//! before `alignas(64) m_flags_packed` (`sizeof(PoolAllocator) == 320` LP64).
+	int m_prefill_word;
 
 	// === Cache line 1+: cross-thread-written atomic counters.
 	// `alignas(64)` on the first counter forces them onto a separate
@@ -3001,19 +3019,28 @@ struct KameTlsPage {
     // `slots`), which would turn `AllocSlot slots[N]` into `AllocSlot [N]` and
     // produce a "decomposition declaration not permitted" error when this header
     // is included from a Qt TU (e.g. kame/main.cpp → kame/allocator.h → here).
-    //! (§ded-fast) This thread's large-recycle L1 (allocator.cpp §28), copied
-    //! here so the dedicated-chunk fast paths (32 KiB < size ≤ 4 MiB − K_MAX)
-    //! reach it off the page the free path already holds: the L1's own
-    //! thread_locals are a `_tlv_get_addr` call each on macOS and a
-    //! `_tls_index` walk each on Windows.  `lrc_l1` is the L1 array,
-    //! `lrc_l1_idx_end` one past the largest index the thread's byte budget
-    //! admits; both are zero until `l1_base()` arms the L1, and `l1_drain()`
-    //! zeroes them again, so `idx < lrc_l1_idx_end` alone means "armed, not
-    //! drained, and slots[idx] in bounds".  `tls_l1` stays the record the
-    //! drain and `kame_pool_trim` read.  Last, so the hot block above keeps
-    //! its offsets.
+    //! (§ded-fast / §28) This thread's large-recycle L1 (allocator.cpp §28),
+    //! stored here so both the dedicated-chunk fast paths (32 KiB < size ≤
+    //! 4 MiB − K_MAX) and `l1_pop_fit` / `l1_push` reach it off `kame_page()`
+    //! with zero `_tlv_get_addr` (macOS) or `_tls_index` (Windows) calls on
+    //! the hot path.  `lrc_l1` points to `tls_l1_storage.rows`; `lrc_l1_mask` packs
+    //! into 32 bits (ILP32 + LP64 safe):
+    //!   - bits [0..24]  (`0..LRC_N_MAX_L1`): demand-opened L1 band bits, set
+    //!                   only when `idx <= cut_idx` AND this thread requested
+    //!                   `idx` in `l1_pop_fit` (bits `17..24` also record
+    //!                   `LRC_MMAP` demand within the L1 range);
+    //!   - bit  25       (`LRC_L1_MMAP_DEMAND_BIT`): this thread has allocated
+    //!                   in `LRC_MMAP` above the L1 cut / `LRC_N_MAX_L1`
+    //!                   (together with bits `17..24`, enables §28.1
+    //!                   `lrc_lazy_mmap_one()` on `recycle_push`);
+    //!   - bits [26..30] (`LRC_L1_CUT_MASK`): `cut_idx + 1` (`0` = unarmed or
+    //!                   drained, `1..25` = armed with `cut_idx = 0..24`).
+    //! Cross-thread frees of size bands this thread never allocates have bit
+    //! `idx` clear and go straight to the shared global L2 cache instead of
+    //! stranding in a private L1.  Last, so the hot block above keeps its
+    //! offsets.
     void      *lrc_l1;
-    uintptr_t  lrc_l1_idx_end;
+    uintptr_t  lrc_l1_mask;
 };
 // `torn_down` reuses what used to be alignment padding, so the layout above is now
 // load-bearing twice over: it must stay 16 B of header (or the hot `m_slots` cache

@@ -1,3 +1,94 @@
+* Thu Nov 19 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- atomic_smart_ptr: a local_shared_ptr or local_weak_ptr move-assigned to
+  itself keeps its pointer, as std::shared_ptr and std::weak_ptr do
+  ([util.smartptr.shared.assign], [util.smartptr.weak.assign]: as
+  `T(std::move(r)).swap(*this)`).  The same-type move assignment was
+  `t.swap(*this); t.reset();`, which left a self-move null: a vector
+  compacted in place (`v[keep++] = std::move(v[q])` with keep == q) dropped
+  its element, and moe-dreams' lander read through the null pointer and
+  crashed.  New test: atomic_shared_ptr_test's test_self_move.
+- Measured (Ryzen 7 5700X, Linux, -O3, before and after interleaved):
+  transaction_latency_bench -t 4 -s 5 leaf 17.40-17.45 -> 17.71-17.98,
+  grand 2.24 -> 2.19-2.24, mixed 3.48-3.57 -> 3.57-3.65 Mcommit/s;
+  transaction_lookup_bench within its run-to-run spread; a move between two
+  pointers 0.43-0.46 ns either way, a vector compacted 0.77-0.84 -> 0.89-1.00
+  ns a move.  A branch on self (`if(this != &t)`) instead made the move
+  between two 0.76 ns, and was not taken.
+
+* Tue Nov 17 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamepoolalloc v1.4.0 also carries the three changes below.
+- kamepoolalloc: every KAME_POOL_* environment knob is read once at load,
+  none by getenv from an allocation.  On macOS getenv takes libc's
+  environment lock, and setenv holds it while its own malloc runs: under
+  DYLD_INSERT_LIBRARIES that malloc came to the pool, the first chunk of
+  its size class read KAME_POOL_DISABLE_PREFILL by getenv, and libplatform
+  killed the process ("Trying to recursively lock an os_unfair_lock") --
+  CPython's start-up setenv did it on every run.  Each activator reads the
+  environment too, since on Windows the priority constructor record may be
+  dropped.  New test: alloc_setenv_test (POSIX only).
+- kamepoolalloc: a thread's L1 recycle cache opens a size band only when
+  that thread allocates in it.  Armed by any allocation >= 32 KiB, it used
+  to open every band below the cut, so a thread that only frees large
+  blocks another thread allocates (an asset streamer's consumer) kept up to
+  k_eff of each in its L1 while the producer mapped fresh ones.  A free in
+  a band the thread never requested goes to the global L2, where the
+  producer reuses it.  The lazy-drain interval is now calibrated from the
+  first real lazy munmap instead of a synthetic 32 MiB map / touch / unmap
+  at the first free (~665 us on M5 Max); foreground and realtime frees no
+  longer pay the lazy unmap tick.  New scenario: alloc_dedicated_fast_test's
+  demand.
+- kamepoolalloc: an FS=true chunk (the fixed-size tiers) is pre-filled one
+  OS page at a time instead of whole (up to 16 128 slots, 256..512 KiB),
+  advancing about 16 KiB per miss once the filled part runs out; a thread
+  that touches many size classes sparsely no longer faults a whole chunk
+  per class.  kame_pool_prewarm() now holds counts[i] blocks live at once,
+  as documented; it recycled the same 128.  New test: alloc_watermark_test.
+- Measured on the branch against 2308984dc (M5 Max, interleaved): 32
+  threads touching the 17 FS=true classes sparsely, RSS 181 -> 21 MiB;
+  bench_frame peak RSS 4 / 8 threads 927 -> 737, 1160 -> 945 MiB;
+  bench_frame --rt 4 threads max latency 1148 -> 482 us; large_va 8 MiB at
+  18 threads 1.50x; rptest 1.07-1.16x; bench_loop, ring and larson level.
+  Merged onto §mt-scale (k_eff read off the L1, admission by the demand
+  bits): macOS ctest 54/54.  Not re-measured after the merge; Linux and
+  Windows not run.
+
+* Sun Nov 15 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
+- kamepoolalloc v1.4.0: the two changes below, with kame_pool_trim()'s
+  flush of the cross-thread batch and the atomic_smart_ptr fixes (Oct 23).
+- kamepoolalloc: 1 MiB blocks stay in the thread's L1 at any thread count.
+  Each thread's L1 took g_lrc_cap / threads, LRC_K_L1 = 32 blocks deep, so
+  the largest size it would hold was a 32nd of that share; past 26 threads
+  under the 1 GiB default it fell below the 1 MiB class, and every 1 MiB
+  malloc and free went to the global L2's CAS.  bench-style loops of
+  malloc(1 MiB) / free at 32 / 64 / 128 threads ran 62 / 24 / 18 M ops/s
+  (gcc, Linux x86-64, 4 vCPU), against 615 at 16.  Now the depth scales
+  first -- k_eff = per-thread share / 4 MiB, clamped to 1..32 -- and size
+  classes are dropped only when one block per class no longer fits, so
+  k_eff x the largest class stays within the share and the cap still
+  bounds the total.  The same loops run 604 / 594 / 575 (7.5-32x, gcc and
+  clang), RSS after 64 threads exit 176 -> 67 MiB.  Up to 8 threads keep
+  k_eff = 32; at 4 and 16 threads the loops are level.  The fast paths read k_eff off the L1
+  (L1Storage), so KameTlsPage's layout is unchanged; a 1 MiB malloc + free
+  is 2 instructions longer (gcc; 4 clang), level in time.  New scenario:
+  alloc_dedicated_fast_test's mt_k_eff.
+- kamepoolalloc: the variable-size borrow tiers up to ~2 KiB (FS=false,
+  ALIGN 32 and 64) hand a block between threads 1.9-2.0x as fast (SPSC
+  ring of 1 KiB blocks, 32 in flight; bench_xthread -w 2 at 1 KiB
+  1.12-1.20x).  A miss claims every free run of the bitmap word in one CAS,
+  the extra slots onto the thread's list; a free into another thread's
+  chunk joins the freeing thread's batch, sorted at flush so a word's slots
+  return in one CAS; it used to return each slot at once.  That batch holds
+  at most 256 such slots (CAP_VAR; 1024 for the FS=true slots), ~256 KiB
+  at 1 KiB: a thread that frees blocks it never allocates keeps that much
+  bit-set until it allocates, exits or trims -- the reason these tiers had
+  stayed out of the batch -- measured at +0.2 MiB over 30 producer cycles.
+  A cross-thread free of 128 B / 1 KiB is 32-48 instructions longer, for
+  fewer cross-core CASes.
+- Verified on Linux x86-64 (gcc 13, clang): ctest on LP64, i586 and i486,
+  with and without assertions, and with the harshest thread-list cap,
+  51/51 (i486 44/44), merged onto master 52/52; the no-DCAS audit; soaks
+  9 404 runs without a failure.
+
 * Fri Oct 23 2026 Kentaro Kitagawa <kitag@issp.u-tokyo.ac.jp>
 - kamepoolalloc: kame_pool_trim() now flushes the calling thread's batch of
   cross-thread frees as well.  A free of a small slot in another thread's

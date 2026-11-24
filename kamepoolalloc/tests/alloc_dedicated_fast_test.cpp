@@ -23,6 +23,10 @@
 //              block then recycles through the same fast paths.
 //   threads    blocks allocated on one thread, freed on another (into ITS
 //              L1), which then exits (drain to L2), reused by the first.
+//   mt_k_eff   64 concurrent threads arm their L1s; threads past #25 still
+//              cache 1 MiB (idx 9) in L1 while scaling k_eff down so a
+//              16-block burst on thread #63 retains only k_eff (<= 4) blocks
+//              in L1 and spills the rest to L2 / release.
 //   late       dedicated blocks allocated and freed from a thread_local
 //              destructor, in both orders a program can get: registered
 //              before the thread's first allocation (so destroyed after all
@@ -46,6 +50,7 @@
 
 #include "kame_pool.h"
 
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -224,7 +229,7 @@ static void scenario_aligned() {
 }
 
 static void scenario_threads() {
-    std::printf("[threads] allocate on A, free on B (B's L1), B exits, A reuses\n");
+    std::printf("[threads] allocate on A, free on B (B's L1 / L2), B exits, A reuses\n");
     for(int round = 0; round < 30; ++round) {
         std::vector<void *> v;
         for(int i = 0; i < 40; ++i) {
@@ -235,7 +240,7 @@ static void scenario_threads() {
         }
         std::thread([&v] {
             for(void *p : v) kame_pool_free(p);
-            // B also churns a little on its own, so its L1 holds both.
+            // B also churns a little on its own, so its L1 opens and holds its band.
             for(int k = 0; k < 20; ++k) kame_pool_free(kame_pool_malloc(200 * 1024));
         }).join();
         for(int i = 0; i < 40; ++i) {
@@ -244,6 +249,155 @@ static void scenario_threads() {
             kame_pool_free(p);
         }
     }
+}
+
+static void scenario_mt_k_eff() {
+    std::printf("[mt_k_eff] 64 threads: 1 MiB stays L1-eligible while k_eff bounds per-thread L1 depth\n");
+    constexpr int NT = 64;
+    const std::size_t saved_cap = kame_pool_get_large_cache_cap();
+    kame_pool_set_large_cache_cap((std::size_t)2 << 30);    // 2 GiB total => 1 GiB g_lrc_cap
+    kame_pool_trim();
+
+    std::atomic<int> turn{0};
+    std::atomic<int> phase{0};
+    std::vector<std::thread> ts;
+    ts.reserve(NT);
+    for(int t = 0; t < NT; ++t) {
+        ts.emplace_back([&, t] {
+            while(turn.load(std::memory_order_acquire) != t)
+                std::this_thread::yield();
+            // Arm this thread's L1 in deterministic order t = 0..63.
+            void *arm = kame_pool_malloc(64 * 1024);
+            check_block(arm, 64 * 1024, "mt_k_eff-arm");
+            kame_pool_free(arm);
+            turn.store(t + 1, std::memory_order_release);
+
+            if(t == NT - 1) {
+                while(phase.load(std::memory_order_acquire) < 1)
+                    std::this_thread::yield();
+                // Under g_lrc_cap == 0 (set by main after all 64 threads armed),
+                // global L2 refuses every push and releases immediately, so only
+                // this thread's already-armed L1 can retain freed chunks.
+                // Threads 0..62 stay alive waiting for phase == 2 so their L1s
+                // do not drain concurrently while we measure dedicated_chunk_bytes.
+                const std::size_t base_ded = stats().dedicated_chunk_bytes;
+                const std::size_t sz_1m = (std::size_t)1 << 20;   // 5 units = 1.25 MiB, idx 9
+                const std::size_t chunk_1m = units_for(sz_1m) * UNIT;
+
+                // (a) Single 1 MiB block must hit L1 on the 64th thread.
+                void *p1 = kame_pool_malloc(sz_1m);
+                check_block(p1, sz_1m, "mt_k_eff-1m");
+                kame_pool_free(p1);
+                const std::size_t after_one = stats().dedicated_chunk_bytes;
+                CHECK(after_one == base_ded + chunk_1m,
+                      "mt_k_eff: 1 MiB free on thread 64 did not stay in L1 "
+                      "(dedicated_chunk_bytes=%zu, expected %zu)",
+                      after_one, base_ded + chunk_1m);
+                void *p2 = kame_pool_malloc(sz_1m);
+                CHECK(p2 == p1,
+                      "mt_k_eff: 1 MiB pop on thread 64 missed L1 (%p != %p)", p2, p1);
+                kame_pool_free(p2);
+
+                // (b) Burst of 16 x 1 MiB blocks: k_eff at n=64..65 is 3..4, so
+                //     only k_eff blocks may stay in L1; the rest must spill past
+                //     k_eff to L2 and (with cap=0) release immediately.
+                std::vector<void *> burst;
+                for(int i = 0; i < 16; ++i) {
+                    void *b = kame_pool_malloc(sz_1m);
+                    check_block(b, sz_1m, "mt_k_eff-burst");
+                    if(b) burst.push_back(b);
+                }
+                for(void *b : burst) kame_pool_free(b);
+                const std::size_t after_burst = stats().dedicated_chunk_bytes;
+                const std::size_t cached_1m = (after_burst >= base_ded)
+                    ? (after_burst - base_ded) / chunk_1m : 0;
+                CHECK(cached_1m >= 1 && cached_1m <= 4,
+                      "mt_k_eff: expected 1..4 x 1 MiB blocks retained in thread 64 L1 "
+                      "(k_eff bound), got %zu (%zu bytes above base %zu)",
+                      cached_1m, after_burst - base_ded, base_ded);
+
+                phase.store(2, std::memory_order_release);
+            } else {
+                while(phase.load(std::memory_order_acquire) < 2)
+                    std::this_thread::yield();
+            }
+        });
+    }
+
+    while(turn.load(std::memory_order_acquire) != NT)
+        std::this_thread::yield();
+    // Squeeze L2 cap to 0 after all 64 threads have armed their L1s so L2
+    // absorbs nothing during thread #63's probe.
+    kame_pool_set_large_cache_cap(0);
+    phase.store(1, std::memory_order_release);
+    for(auto &th : ts) th.join();
+
+    kame_pool_set_large_cache_cap(saved_cap);
+    kame_pool_trim();
+}
+
+// Demand-gated L1: a long-lived consumer thread B that only allocates 64 KiB
+// (idx 0) must NOT hoard cross-thread 1 MiB dedicated chunks (idx 9) or 8 MiB
+// large_va mmaps (idx 20) in its private L1 while B remains alive.  Instead B
+// pushes unrequested bands straight to global L2 so producer A immediately
+// reuses the same chunk without claiming 20 MiB of stranded chunks.
+static void scenario_demand_handoff() {
+    std::printf("[demand] live consumer armed at 64 KiB routes 1 MiB / 8 MiB frees to L2\n");
+    kame_pool_trim();
+    const std::size_t base_ded = stats().dedicated_chunk_bytes;
+
+    std::atomic<void *> slot_ded{nullptr};
+    std::atomic<void *> slot_lva{nullptr};
+    std::atomic<int>    state{0};   // 0=idle, 1=ready-to-free, 2=freed, 3=quit
+
+    std::thread consumer([&] {
+        // Arm B's L1 on 64 KiB only (idx 0), matching bench_frame's game thread.
+        void *warm = kame_pool_malloc(64 * 1024);
+        check_block(warm, 64 * 1024, "demand-warm");
+        kame_pool_free(warm);
+
+        for(;;) {
+            int s = state.load(std::memory_order_acquire);
+            if(s == 3) break;
+            if(s != 1) { std::this_thread::yield(); continue; }
+            kame_pool_free(slot_ded.load(std::memory_order_relaxed));
+            kame_pool_free(slot_lva.load(std::memory_order_relaxed));
+            state.store(2, std::memory_order_release);
+        }
+    });
+
+    const std::size_t sz_ded = (std::size_t)1024 * 1024;
+    const std::size_t sz_lva = (std::size_t)8 * 1024 * 1024;
+    for(int round = 0; round < 20; ++round) {
+        void *pd = kame_pool_malloc(sz_ded);
+        void *pl = kame_pool_malloc(sz_lva);
+        check_block(pd, sz_ded, "demand-ded");
+        CHECK(pl != nullptr, "demand-lva: malloc(%zu) returned null", sz_lva);
+        if(pd) stamp(pd, sz_ded, (unsigned char)(0xA0 + round));
+        if(pl) stamp(pl, 4096, (unsigned char)(0x50 + round));
+        slot_ded.store(pd, std::memory_order_relaxed);
+        slot_lva.store(pl, std::memory_order_relaxed);
+        state.store(1, std::memory_order_release);
+        while(state.load(std::memory_order_acquire) != 2)
+            std::this_thread::yield();
+
+        // Consumer B is STILL ALIVE: the 1.25 MiB dedicated chunk must be in
+        // global L2 (cache_bytes >= 1.25 MiB) and total dedicated bytes must
+        // stay bounded to B's 256 KiB chunk + A's single 1.25 MiB chunk
+        // (<= 2 MiB above base, vs 25+ MiB if stranded in B's private L1).
+        const kame_pool_stats_t st = stats();
+        CHECK(st.cache_bytes >= 5 * UNIT,
+              "demand round %d: expected >= %zu B in global L2, got %zu B",
+              round, 5 * UNIT, st.cache_bytes);
+        CHECK(st.dedicated_chunk_bytes <= base_ded + 8 * UNIT,
+              "demand round %d: dedicated_chunk_bytes grew to %zu (base %zu) — "
+              "consumer hoarded unrequested band in private L1",
+              round, st.dedicated_chunk_bytes, base_ded);
+        state.store(0, std::memory_order_release);
+    }
+
+    state.store(3, std::memory_order_release);
+    consumer.join();
 }
 
 // Allocates and frees dedicated blocks when destroyed.  Its destructor is
@@ -301,6 +455,8 @@ int main() {
     scenario_calloc_realloc();
     scenario_aligned();
     scenario_threads();
+    scenario_mt_k_eff();
+    scenario_demand_handoff();
 
     kame_pool_trim();
     const kame_pool_stats_t s0 = stats();

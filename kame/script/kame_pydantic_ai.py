@@ -915,7 +915,7 @@ def _build_agent(model):
     #imports the module-level `agent` after this process has been replaced), so
     #only something attached to the agent itself sees every call.
     caps = (_install_usage_logging(str(getattr(model, 'model_name', model)))
-            + kame_history_budget() + kame_model_identity())
+            + kame_history_budget() + kame_model_identity() + kame_notebook_files())
     kwargs = {'capabilities': caps} if caps else {}
     if _max_tokens_setting():
         #Agent level, so it reaches whatever model the menu or clai puts in.
@@ -962,6 +962,137 @@ def kame_model_identity():
                 'which model you are, say that; do not name another model or '
                 'vendor.'.format(name, ', served from ' + host if host else ''))
     return [Capability(instructions=[_who])]
+
+
+#Never read or written by the notebook-folder tools: what they read goes to the
+#model's provider.  Every dot-entry, since settings and secrets are (a .env,
+#.git) and notebooks and data are not, and key files.
+_NB_PRIVATE = ('.*', '*.pem', '*.key', '*.p12')
+
+
+def _notebook_dir():
+    """The folder KAME's notebook serves, or None before one is launched.
+
+    Looked up on every call: KAME may restart with another folder."""
+    for path in (OWN_INFO_FILE,
+                 os.path.join(os.path.expanduser('~'), '.kame_kernel_connection.json')):
+        if path and os.path.exists(path):
+            try:
+                with open(path) as f:
+                    d = json.load(f).get('notebook_dir')
+            except (OSError, ValueError, AttributeError):
+                d = None
+            if d:
+                return d
+    return None
+
+
+def kame_notebook_files():
+    """List, read and write files in the KAME notebook's folder, as Agent
+    capabilities: `capabilities=[*kame_notebook_files()]`.
+
+    The notebooks and what they save (CSVs, scripts, figures) live there, and
+    KAME's MCP tools reach it only through execute_code, which is Python with no
+    bounds at all.  These three stay inside the folder and its subfolders (a
+    symbolic link out included), are off altogether when that folder is the
+    home directory or above it, never touch _NB_PRIVATE, replace an existing
+    file only when
+    asked, and leave .ipynb files to notebook_edit, which keeps an open
+    notebook consistent.  There is no delete.  A refusal is returned as text,
+    so it does not spend the run's retries."""
+    import fnmatch
+    from pydantic_ai.capabilities import Toolset
+    from pydantic_ai.toolsets import FunctionToolset
+
+    def private(name):
+        return any(fnmatch.fnmatch(name, pat) for pat in _NB_PRIVATE)
+
+    def resolve(path):
+        root = _notebook_dir()
+        if not root:
+            raise ValueError("There is no notebook folder yet: KAME's Jupyter notebook "
+                             "has not been launched in this session.")
+        root = os.path.realpath(root)
+        #A notebook opened in the home directory (or above it) would hand the
+        #model the whole home -- ~/.kame_pyai.env with the API keys, ~/.ssh,
+        #~/Library -- so then nothing is allowed; any other folder is, with
+        #its subfolders.
+        home = os.path.realpath(os.path.expanduser('~'))
+        if root == home or home.startswith(root.rstrip(os.sep) + os.sep):
+            raise ValueError('The notebook folder is {}, which is or contains the home '
+                             'directory, so these tools are off.  Open the notebook in a '
+                             'folder of its own to use them.'.format(root))
+        target = os.path.realpath(os.path.join(root, path or '.'))
+        if target != root and not target.startswith(root + os.sep):
+            raise ValueError('{} is outside the notebook folder {}.'.format(path, root))
+        if any(private(p) for p in os.path.relpath(target, root).split(os.sep) if p != '.'):
+            raise ValueError('{} is not read or written by these tools.'.format(path))
+        return root, target
+
+    def list_notebook_folder(path: str = '.') -> str:
+        """List a folder inside the KAME notebook's folder, where the notebooks and
+        the files they save are.  `path` is relative to the notebook folder.  One
+        entry per line: `name/` for a folder, otherwise the name and its size in
+        bytes."""
+        try:
+            root, target = resolve(path)
+        except ValueError as e:
+            return str(e)
+        if not os.path.isdir(target):
+            return '{} is not a folder.'.format(path)
+        lines = []
+        for name in sorted(os.listdir(target)):
+            if private(name):
+                continue
+            p = os.path.join(target, name)
+            lines.append(name + '/' if os.path.isdir(p) else '{}  {}'.format(name, os.path.getsize(p)))
+        return '\n'.join(lines[:1000]) or '(empty)'
+
+    def read_notebook_file(path: str, max_chars: int = 50000) -> str:
+        """Read a text file (a CSV, a script, a log) inside the KAME notebook's
+        folder; `path` is relative to it.  Cut at `max_chars`.  For a notebook's
+        cells use notebook_read."""
+        try:
+            root, target = resolve(path)
+        except ValueError as e:
+            return str(e)
+        if not os.path.isfile(target):
+            return '{} is not a file.'.format(path)
+        size = os.path.getsize(target)
+        with open(target, 'rb') as f:
+            data = f.read(max_chars * 4 + 1)
+        if b'\0' in data[:8192]:
+            return ('{} is a binary file ({} bytes); read it with execute_code if '
+                    'you need it.'.format(path, size))
+        text = data.decode('utf-8', errors='replace')
+        if len(text) > max_chars or size > len(data):
+            return text[:max_chars] + '\n[... cut at {} characters; the file is {} bytes]'.format(
+                max_chars, size)
+        return text
+
+    def write_notebook_file(path: str, content: str, overwrite: bool = False) -> str:
+        """Write a text file inside the KAME notebook's folder; `path` is relative
+        to it, and missing folders are made.  An existing file is replaced only
+        with overwrite=True.  Notebooks (.ipynb) are not written here: edit their
+        cells with notebook_edit."""
+        try:
+            root, target = resolve(path)
+        except ValueError as e:
+            return str(e)
+        if target.endswith('.ipynb'):
+            return ('Notebooks are not written here: edit their cells with '
+                    'notebook_edit, which keeps an open notebook consistent.')
+        if os.path.isdir(target):
+            return '{} is a folder.'.format(path)
+        if os.path.exists(target) and not overwrite:
+            return '{} exists; pass overwrite=True to replace it.'.format(path)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with open(target, 'w', encoding='utf-8') as f:
+            f.write(content)
+        return 'Wrote {} ({} characters).'.format(os.path.relpath(target, root), len(content))
+
+    return [Toolset(FunctionToolset([list_notebook_folder, read_notebook_file,
+                                     write_notebook_file]))]
 
 
 def kame_history_budget(max_tokens=None, keep_recent=6):

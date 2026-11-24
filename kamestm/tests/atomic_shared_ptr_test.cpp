@@ -6,6 +6,7 @@
 
 #include <stdint.h>
 #include <thread>
+#include <vector>
 
 #include "atomic_smart_ptr.h"
 #include "xthread.cpp"
@@ -283,6 +284,36 @@ static void test_atomic_move() {
     assert(objcnt == objcnt_before);
 }
 
+//! A move assigned to itself keeps the pointer and its count, as
+//! std::shared_ptr's and std::weak_ptr's do ([util.smartptr.shared.assign],
+//! [util.smartptr.weak.assign]): a vector compacted in place moves an element
+//! onto itself (`v[keep++] = std::move(v[q])` with keep == q).  Until
+//! 2026-11-19 `t.swap(*this); t.reset();` left it null (moe-dreams' lander
+//! then read through a null HostRows and crashed).
+static void test_self_move() {
+    printf("test_self_move\n");
+    int objcnt_before = objcnt;
+    {
+        local_shared_ptr<W> sp = make_local_shared<W>(7);
+        local_shared_ptr<W> &same = sp;
+        sp = std::move(same);
+        assert(sp && sp->x() == 7 && sp.use_count() == 1);
+        local_weak_ptr<W> wp(sp);
+        local_weak_ptr<W> &wsame = wp;
+        wp = std::move(wsame);
+        assert( !wp.expired() && wp.lock() == sp);
+        std::vector<local_shared_ptr<W>> v;
+        for(long i = 0; i < 6; ++i) v.push_back(make_local_shared<W>(i + 1));
+        size_t keep = 0;
+        for(size_t q = 0; q < v.size(); ++q)          //!< the even ones kept in place: moved onto themselves first
+            if(q % 2 == 0) v[keep++] = std::move(v[q]);
+        v.resize(keep);
+        assert(v.size() == 3 && v[0]->x() == 1 && v[1]->x() == 3 && v[2]->x() == 5);
+        assert(objcnt == objcnt_before + 4);          //!< sp and the three kept
+    }
+    assert(objcnt == objcnt_before);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -291,6 +322,7 @@ main(int argc, char **argv)
     test_local_weak_ptr_default();
     test_local_weak_ptr_default_race();
     test_atomic_move();
+    test_self_move();
 
     std::thread threads[NUM_THREADS];
 

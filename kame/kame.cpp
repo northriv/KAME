@@ -735,10 +735,12 @@ static void kameStoreGraphTheme(XGraph::Theme theme) {
 void
 kameApplyColorScheme(Qt::ColorScheme scheme) {
     g_kameColorSchemeRequested = scheme;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
     if(scheme == Qt::ColorScheme::Unknown)
         QGuiApplication::styleHints()->unsetColorScheme();
     else
         QGuiApplication::styleHints()->setColorScheme(scheme);
+#endif
 }
 
 FrmKameMain::EdgeSlider *
@@ -1102,6 +1104,7 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
     //So every sheet that names a palette role is set again here: the strips',
     //and the application's own (QGroupBox borders, palette(mid)).  Whoever
     //changed it -- the menu, the command line, or the desktop while KAME runs.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged,
         this, [this](Qt::ColorScheme) {
             //One turn of the event loop later, and that is the whole point:
@@ -1124,6 +1127,7 @@ FrmKameMain::setupEdgeAutoHide(const QRect &screen) {
                 }
             });
         });
+#endif
     m_pEdgeHoverTimer = new QTimer(this);
     connect(m_pEdgeHoverTimer, &QTimer::timeout, this, &FrmKameMain::pollEdgeAutoHide);
     m_pEdgeHoverTimer->start(150);

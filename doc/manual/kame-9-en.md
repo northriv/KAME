@@ -1674,7 +1674,15 @@ for anything that wants the keys without `python-dotenv`. `kame_usage_logging()`
 returns the per-request usage recorder as capabilities
 (`capabilities=[..., *kame_usage_logging('my-agent')]`), so your agent's calls
 land in the same
-`usage.jsonl` as KAME's; `kame_web_plots(app)` and `FIGURE_INSTRUCTIONS` are
+`usage.jsonl` as KAME's. `kame_notebook_files()` gives the model three tools
+for the folder the notebook serves — list it, read a text file, write one —
+which KAME's agent has too: they work in that folder and its subfolders (a
+symbolic link out of it included), and are off altogether when the notebook
+folder is your home directory or above it, which would hand the model
+`~/.kame_pyai.env` with your keys, `~/.ssh` and the rest; open the notebook in a
+folder of its own to use them. They never touch a name starting with `.` or a
+key file, replace an existing file only when told to, and leave notebooks to
+`notebook_edit`. There is no delete. `kame_web_plots(app)` and `FIGURE_INSTRUCTIONS` are
 described under *What each client can show you*. `kame_mcp()` speaks
 HTTP to the running KAME, so the virtualenv needs neither `jupyter_client`
 nor the stdio launcher, and a path such as

@@ -782,9 +782,13 @@ public:
         local_shared_ptr(y).swap( *this);
         return *this;
     }
+    //! std::shared_ptr's move assignment ([util.smartptr.shared.assign]: as
+    //! `shared_ptr(std::move(r)).swap(*this)`): a self-move keeps the pointer.
+    //! Until 2026-11-19 `t.swap(*this); t.reset();`, which a self-move left
+    //! null (a vector compacted in place, `v[keep++] = std::move(v[q])` with
+    //! keep == q, dropped its element).
     local_shared_ptr &operator=(local_shared_ptr &&t) noexcept {
-        t.swap( *this);
-        t.reset();
+        local_shared_ptr(std::move(t)).swap( *this);
         return *this;
     }
     template<typename Y, typename Z> local_shared_ptr &operator=(local_shared_ptr<Y, Z> &&y) noexcept {
@@ -944,9 +948,10 @@ public:
         local_weak_ptr(sp).swap( *this);
         return *this;
     }
+    //! std::weak_ptr's ([util.smartptr.weak.assign]): a self-move keeps it
+    //! (until 2026-11-19 `o.swap(*this); o.reset();`, which left it null).
     local_weak_ptr &operator=(local_weak_ptr &&o) noexcept {
-        o.swap( *this);
-        o.reset();
+        local_weak_ptr(std::move(o)).swap( *this);
         return *this;
     }
 

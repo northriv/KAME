@@ -178,6 +178,13 @@ if(USE_KAME_ALLOCATOR)
     add_executable(alloc_trim_cross_test alloc_trim_cross_test.cpp)
     target_link_libraries(alloc_trim_cross_test kamepoolalloc Threads::Threads)
 
+    # (§29 watermark / §75 prewarm) FS=true lazy watermark freelist pre-fill:
+    # multi-step chunk expansion across all 17 FS=true buckets, partial-
+    # watermark cross-thread frees + orphan group adoption, 32-thread sparse-
+    # bucket RSS bound, and kame_pool_prewarm(> 128) RT capacity guarantee.
+    add_executable(alloc_watermark_test alloc_watermark_test.cpp)
+    target_link_libraries(alloc_watermark_test kamepoolalloc Threads::Threads)
+
     # Thread-churn / orphan-reuse repro for "driver start/stop -> reserved grows".
     add_executable(alloc_thread_churn_test alloc_thread_churn_test.cpp)
     target_link_libraries(alloc_thread_churn_test kamepoolalloc Threads::Threads)
@@ -323,6 +330,11 @@ if(USE_KAME_ALLOCATOR)
     # layer that the bench/README head-to-head numbers depend on.
     add_executable(malloc_intercept_test malloc_intercept_test.cpp)
     target_link_libraries(malloc_intercept_test kamepoolalloc Threads::Threads)
+    # POSIX-only (setenv/unsetenv, which MinGW does not have).
+    if(NOT WIN32)
+        add_executable(alloc_setenv_test alloc_setenv_test.cpp)
+        target_link_libraries(alloc_setenv_test kamepoolalloc Threads::Threads)
+    endif()
 
     # (contrib) C++17 Allocator concept conformance for
     # `kame::pool_allocator<T>` — exercises rebind, propagate_on_*,
@@ -441,12 +453,16 @@ enable_testing()
 if(USE_KAME_ALLOCATOR)
     add_test(NAME c_api_test COMMAND c_api_test)
     add_test(NAME malloc_intercept_test COMMAND malloc_intercept_test)
+    if(NOT WIN32)
+        add_test(NAME alloc_setenv_test COMMAND alloc_setenv_test)
+    endif()
     add_test(NAME alloc_huge_test COMMAND alloc_huge_test)
     add_test(NAME alloc_calloc_zero_test COMMAND alloc_calloc_zero_test)
     add_test(NAME alloc_aligned_test COMMAND alloc_aligned_test)
     add_test(NAME alloc_fit_test COMMAND alloc_fit_test)
     add_test(NAME alloc_phase_test COMMAND alloc_phase_test)
     add_test(NAME alloc_trim_cross_test COMMAND alloc_trim_cross_test)
+    add_test(NAME alloc_watermark_test COMMAND alloc_watermark_test)
     add_test(NAME atomic_intrusive_dispose_test COMMAND atomic_intrusive_dispose_test)
     add_test(NAME atomic_intrusive_chain_test COMMAND atomic_intrusive_chain_test)
     add_test(NAME atomic_serial_test COMMAND atomic_serial_test)
