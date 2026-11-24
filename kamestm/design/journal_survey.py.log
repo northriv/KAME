@@ -1,0 +1,36 @@
+2026-08-29 15:43:03.325457:#<Thread(Thread-7 (loadSequence), started daemon 14085550080)> started.
+2026-08-29 15:43:03.346832:KAME journal survey  2026-08-29 15:43:03
+
+nodes total          : 7103
+  runtime == True    : 5890
+  runtime == False   : 1213
+  flag unreadable    : 0
+  with children      : 632
+  max depth          : 7
+value nodes the journal would subscribe to (non-runtime): 1213
+tree walk took       : 0.02 s
+
+Sampling 120 s at 0.25 s -- keep the measurement running and do NOT touch the UI.
+2026-08-29 15:45:03.351338:tree walk took       : 0.02 s
+
+Sampling 120 s at 0.25 s -- keep the measurement running and do NOT touch the UI.
+
+samples              : 470 over 118 s
+non-runtime nodes that changed with nobody touching them: 12
+(each is an output whose runtime flag is missing, or a setting a driver writes back)
+
+  800.00 /s  /Thermometers/CX-1030-AA X127011/ResList/
+  800.00 /s  /Thermometers/CX-1030-AA X127011/TempList/
+   68.00 /s  /Interfaces/Interface
+   56.00 /s  /Interfaces/Interface/Address
+   36.00 /s  /ScalarEntries/Position
+   36.00 /s  /Interfaces/Interface/Device
+   32.00 /s  /Interfaces/Interface/Port
+    8.00 /s  /ScalarEntries/Marker1X
+    8.00 /s  /ScalarEntries/Marker1Y
+    8.00 /s  /ScalarEntries/Position/Delta
+    8.00 /s  /ScalarEntries/Value
+    0.43 /s  /Drivers/ODMR2D/Average
+2026-08-29 15:45:03.351386:
+written to /Users/ssp/kame_journal_survey.txt
+2026-08-29 15:45:03.352478:<Thread(Thread-7 (loadSequence), started daemon 14085550080)> Finished.
